@@ -28,20 +28,20 @@ def initNewColumns(data,colNames,value=-1):
         data[col] = value*np.ones_like(data['CID'])
     return data
 
-def computeNorm(gals,cat,ngals,nbkg):
+def computeNorm(gals,cat,r200,nbkg):
     norm = []
     
     good_indices, = np.where(nbkg>0)
     for idx in good_indices:
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        n_cls_field, nb = ngals[idx], nbkg[idx]
+        r2, nb = r200[idx], nbkg[idx]
 
         print('cls_id',cls_id, 'at redshift', z_cls)
 
         galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id))
         probz = gals['PDFz'][galaxies]
         
-        # n_cls_field = np.sum(probz)/(np.pi*r2**2)    
+        n_cls_field = np.sum(probz)/(np.pi*r2**2)    
         n_gals = n_cls_field-nb
 
         ni = n_gals/nb
@@ -51,7 +51,6 @@ def computeNorm(gals,cat,ngals,nbkg):
         norm.append(ni)
 
     return np.array(norm)
-
 
 def doProb(ngals,nbkg,norm,normed=False):
     
@@ -248,11 +247,11 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     # print('Check size array: pdfr, pdfr_bkg',len(pdfr),len(pdfr_bkg),'\n')
 
     print('-> Redshift Distribution')
-    pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, ngals, nbkg, plot=True)
+    pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, ngals, nbkg, plot=False)
     # print('Check size array: pdfz, pdfz_bkg',len(pdfz),len(pdfz_bkg),'\n')
 
     print('-> Color Distribution')
-    pdfc, pdfc_bkg, flagc = probc.computeColorPDF(gal, cat, ngals, nbkg, bandwidth=[0.003,0.001,0.001],parallel=False,plot=True)
+    pdfc, pdfc_bkg, flagc = probc.computeColorPDF(gal, cat, ngals, nbkg, bandwidth=[0.003,0.001,0.001],parallel=True,plot=False)
     print('Check size array: pdfc, pdfc_bkg',len(pdfc),len(pdfc_bkg),'\n')
     
     # (g-r), (g-i), (r-i), (r-z), (i-z)
@@ -267,7 +266,7 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     pdfs = [pdfr,pdfz,pdfc]
     pdfs_bkg = [pdfr_bkg,pdfz_bkg,pdfc_bkg]
 
-    norm = computeNorm(gal, cat, ngals, nbkg)
+    norm = computeNorm(gal, cat, r200, nbkg)
     Pr, Pz, Pc, Pmem = computeProb(keys,pdfs,pdfs_bkg,norm)
 
     print('Writing Output Catalogs')
