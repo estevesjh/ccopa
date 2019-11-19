@@ -35,7 +35,7 @@ def plotDensityMap(image,x,y,radius,pmem=0.5,title='Density Map',savename='./den
 ## -------------------------------
 ## auxiliary functions
 
-def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.):
+def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
     pz_bkg = pz[bkgMask]
     theta_bkg = theta[bkgMask]
 
@@ -43,7 +43,8 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.):
     for ni in range(nslices):
         w, = np.where((theta_bkg <= (ni+1)*(360/nslices))&(theta_bkg >= (ni)*(360/nslices)))
         Nbkg = np.sum(pz_bkg[w])
-        # Nbkg = len(pz_bkg[w])
+        if method=='counts':
+            Nbkg = len(pz_bkg[w])
         
         lista = np.append(lista,Nbkg)
 
@@ -78,7 +79,7 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.):
 
     return Nbkg, idx_gal
 
-def getDensityBkg(all_gal,theta,r_aper,r_in=6,r_out=8,nslices=72):
+def getDensityBkg(all_gal,theta,r_aper,r_in=6,r_out=8,nslices=72,method='pdf'):
     ## get bkg
     galMask = (all_gal['R']<=r_aper)
     bkgMask = (all_gal['R']>=r_in)&(all_gal['R']<=r_out)
@@ -87,8 +88,8 @@ def getDensityBkg(all_gal,theta,r_aper,r_in=6,r_out=8,nslices=72):
     area_bkg = np.pi*( (r_out)**2 - (r_in)**2 )
     area = (np.pi*r_aper**2)
 
-    nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices,n_high=2.)
-    ngal, _ = calcNbkg(pz,theta,galMask,nslices=nslices,n_high=2.)
+    nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices,n_high=2.,method=method)
+    ngal, _ = calcNbkg(pz,theta,galMask,nslices=nslices,n_high=2.,method=method)
 
     nbkg, ngal = (nbkg/area_bkg), (ngal/area)
 
@@ -112,7 +113,7 @@ def pol2cart(rho, phi):
     y = rho * np.sin(phi)
     return(x, y)
 
-def computeDensityBkg(gals,cat,r_in=6,r_out=8,r_aper=1.,nslices=72):
+def computeDensityBkg(gals,cat,r_in=6,r_out=8,r_aper=1.,nslices=72,method='pdf'):
     ''' It computes the background galaxy density in a ring (r_in,r_out). 
         In order to avoid over and under dense regions it cuts the ring in a given number of slices (nslices)
         and computes the galaxy density in each slice (nbkg_i). It discards 3sigma around the median.
@@ -141,8 +142,8 @@ def computeDensityBkg(gals,cat,r_in=6,r_out=8,r_aper=1.,nslices=72):
         theta = calcTheta(gal['RA'],gal['DEC'],ra_c,dec_c)
         thetaL = calcTheta(gal_magLim['RA'],gal_magLim['DEC'],ra_c,dec_c)
 
-        nbkg_i, _ = getDensityBkg(gal,theta,r_aper,r_in=r_in,r_out=r_out,nslices=nslices)
-        nbkg_j, bkgIndices = getDensityBkg(gal_magLim,thetaL,r_aper,r_in=r_in,r_out=r_out,nslices=nslices)
+        nbkg_i, _ = getDensityBkg(gal,theta,r_aper,r_in=r_in,r_out=r_out,nslices=nslices,method=method)
+        nbkg_j, bkgIndices = getDensityBkg(gal_magLim,thetaL,r_aper,r_in=r_in,r_out=r_out,nslices=nslices,method=method)
 
         ## Updating the background status
         maskBkg[galIndicesL[bkgIndices]] = True
@@ -170,11 +171,11 @@ def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
         cls_id = cat['CID'][idx]
         ra_c, dec_c = cat['RA'][idx], cat['DEC'][idx]
         magLim_i = cat['magLim'][idx,1] ### mi cut
-        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=rmax)&(gals['mag'][:,2]<magLim_i))
+        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=rmax[idx])&(gals['mag'][:,2]<magLim_i))
         
         pz = gals['PDFz'][indices]
         theta = calcTheta(gals['RA'][indices],gals['DEC'][indices],ra_c,dec_c)
-        area = np.pi*rmax**2
+        area = np.pi*rmax[idx]**2
 
         if len(indices)>0:
             galMask = np.full(len(pz), True, dtype=bool)

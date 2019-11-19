@@ -116,7 +116,7 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,rmax=3,testPz=False):
     critdense1 = crit_density(rho_crit,z_cls,0.23,0.77)
     critdense = critdense1*np.ones_like(rbin)
 
-    X=200 #desired excess over critical density, ex. if X=200, calculates R/M200
+    X=2000 #desired excess over critical density, ex. if X=200, calculates R/M200
     dX=10  #acceptance window around X
     ratio=mass_density/critdense
 
@@ -189,10 +189,12 @@ def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,testPz=False,compute=T
 
     for idx in range(ncls):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        gal = gals[(gals['CID']==cls_id)]
+        magLim_i = cat['magLim'][idx,1]
+
+        gal = gals[(gals['CID']==cls_id)&(gals['mag'][:,2]<=magLim_i)]
 
         if compute:
-            r200i = calcR200(gal['R'],gal['PDFz'],cls_id,z_cls,nbkg[idx],rmax=rmax,testPz=testPz)
+            r200i = calcR200(gal['R'],np.ones_like(gal['PDFz']),cls_id,z_cls,nbkg[idx],rmax=rmax,testPz=testPz)
         else:
             r200i = 0.1
 

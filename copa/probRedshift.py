@@ -104,7 +104,7 @@ def redshiftDistribuitionSubtraction(z,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
 
 #     return idx, pdf_i, pdf_i_bkg
 
-def computeRedshiftPDF(gals,cat,ngals,nbkg,bandwidth=0.008,plot=False,testPz=False):
+def computeRedshiftPDF(gals,cat,r200,nbkg,bandwidth=0.008,plot=False,testPz=False):
     ## estimate PDFz
     pdf = np.empty(0,dtype=float)
     pdf_bkg = np.empty(0,dtype=float)
@@ -114,7 +114,8 @@ def computeRedshiftPDF(gals,cat,ngals,nbkg,bandwidth=0.008,plot=False,testPz=Fal
     good_indices, = np.where(nbkg>0)
     for idx in good_indices:
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        n_cls_field, nb = ngals[idx], nbkg[idx]
+        r2, nb = r200[idx], nbkg[idx]
+        # n_cls_field, nb = ngals[idx], nbkg[idx]
 
         galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id))
         bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
@@ -125,6 +126,8 @@ def computeRedshiftPDF(gals,cat,ngals,nbkg,bandwidth=0.008,plot=False,testPz=Fal
         probz = np.array(gals['PDFz'][galaxies])
         probz_bkg = np.array(gals['PDFz'][bkgGalaxies])
 
+        n_cls_field = np.sum(probz)/(np.pi*r2**2)
+        
         if len(z_gal)>0:
             idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bandwidth,prior=[probz,probz_bkg])
             Flag[galaxies[idx]] = True
