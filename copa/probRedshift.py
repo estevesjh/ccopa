@@ -66,7 +66,6 @@ def redshiftDistribuitionSubtraction(z,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
     kernel = kde.gaussian_kde(z,bw_method='silverman',weights=prior[0])
     kernel_bkg = kde.gaussian_kde(z_bkg,bw_method='silverman',weights=prior[1])
 
-
     pdf = kernel(z)
     pdf_bkg = kernel_bkg(z)
 
@@ -131,10 +130,13 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,bandwidth=0.008,plot=False,testPz=Fals
         if len(z_gal)>0:
             idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bandwidth,prior=[probz,probz_bkg])
             Flag[galaxies[idx]] = True
+            
+            # pdf_i = probz
+            # pdf_i_bkg = pdf_i_bkg
         
         else:
             pdf_i, pdf_i_bkg = np.ones_like(z_gal),np.ones_like(z_gal)
-
+            
         if plot:
             svname = './controlPlots/redshift/Cluster_%i'%cls_id
             kernel = kde.gaussian_kde(z_gal,bw_method='silverman',weights=probz)

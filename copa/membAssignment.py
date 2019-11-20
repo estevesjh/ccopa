@@ -38,7 +38,7 @@ def computeNorm(gals,cat,r200,nbkg):
 
         print('cls_id',cls_id, 'at redshift', z_cls)
 
-        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id))
+        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)&(gals['R']<=r2))
         probz = gals['PDFz'][galaxies]
         
         n_cls_field = np.sum(probz)/(np.pi*r2**2)    
@@ -108,7 +108,6 @@ def computeContamination(gal,keys,r200,magLim):
         bkgFlag[contaminants] = True
 
     return np.array(ratio), bkgFlag
-
 
 def computeNgals(g,keys,r_aper=2.,true_gals=False,col='Pmem'):
     ngals = []
@@ -226,7 +225,7 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     print('Computing Galaxy Density')
     ## Compute nbkg
     _, nbkg, BkgFlag = backSub.computeDensityBkg(gal,cat,r_in=r_in,r_out=r_out,r_aper=1.,nslices=72)
-    _, nbkg2, _ = backSub.computeDensityBkg(gal,cat,r_in=r_in,r_out=r_out,r_aper=1.,nslices=72,method='counts')
+    _, nbkg2,_ = backSub.computeDensityBkg(gal,cat,r_in=r_in,r_out=r_out,r_aper=1.,nslices=72,method='counts')
 
     ## updating galaxy status
     gal['Bkg'] = BkgFlag    ## all galaxies inside the good backgrund ring's slice
@@ -238,20 +237,22 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     if simulation:
         nbkg0, BkgFlag0 = computeContamination(gal, cat['CID'], r200, np.array(cat['magLim']))
 
-    ngals, galFlag, keys = backSub.computeGalaxyDensity(gal, cat, r200, nbkg,nslices=72)
+    # ngals, galFlag, keys = backSub.computeGalaxyDensity(gal, cat, rmax*np.ones_like(r200), nbkg, nslices=72)
+    ngals, galFlag, keys = backSub.computeGalaxyDensity(gal, cat, r200, nbkg, nslices=72)
     gal['Gal'] = galFlag    ## all galaxies inside R200
 
     print('Computing PDFs \n')
     print('-> Radial Distribution')
     pdfr, pdfr_bkg = radial.computeRadialPDF(gal, cat, r200, nbkg, c=3.53, plot=False)
     # pdfr, pdfr_bkg = np.ones_like(gal['R']), np.ones_like(gal['R'])
-    # print('Check size array: pdfr, pdfr_bkg',len(pdfr),len(pdfr_bkg),'\n')
+    print('Check size array: pdfr, pdfr_bkg',len(pdfr),len(pdfr_bkg),'\n')
 
     print('-> Redshift Distribution')
     pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, r200, nbkg, plot=False)
-    # print('Check size array: pdfz, pdfz_bkg',len(pdfz),len(pdfz_bkg),'\n')
+    print('Check size array: pdfz, pdfz_bkg',len(pdfz),len(pdfz_bkg),'\n')
 
     print('-> Color Distribution')
+    # area_bkg = np.pi*(r_out**2-r_in**2)
     pdfc, pdfc_bkg, flagc = probc.computeColorPDF(gal, cat, r200, nbkg, bandwidth=[0.003,0.001,0.001],parallel=True,plot=False)
     print('Check size array: pdfc, pdfc_bkg',len(pdfc),len(pdfc_bkg),'\n')
     

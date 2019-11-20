@@ -1,13 +1,14 @@
 # libraries
 import configparser as ConfigParser
 import logging
-from time import time
+from time import time, sleep
 from os import path
 import os
 from astropy.table import Table, vstack
 import astropy.io.fits as pyfits
 
 import glob
+import fitsio
 
 # local libraries
 import membAssignment as membAssign
@@ -183,35 +184,56 @@ def group_table_by(table,key,idx):
             new_table = vstack([new_table,ti])
     return new_table
 
-def readFile(file_gal):
-	galaxy_cat = pyfits.open(file_gal)
-	g0 = Table(galaxy_cat[1].data)
-	return g0
+# def readFile(file_gal):
+# 	galaxy_cat = pyfits.open(file_gal)
+# 	g0 = Table(galaxy_cat[1].data)
+# 	return g0
 	
-def readFiles(files):
-	allData = []
-	for file_gal in files:
-		if path.isfile(file_gal):
-			g0 = readFile(file_gal)
-			allData.append(g0)
+# def readFiles(files):
+# 	allData = []
+# 	for file_gal in files:
+# 		if path.isfile(file_gal):
+# 			g0 = readFile(file_gal)
+# 			allData.append(g0)
 		
-		else:
-			print('file not found %s'%(file_gal))
+# 		else:
+# 			print('file not found %s'%(file_gal))
 	
-	g = vstack(allData)
-	return g
+# 	g = vstack(allData)
+# 	return g
 
-def writeFiles(member_outfile,cluster_outfile):
-	logging.info('Writing output')
-	clusterNames = sorted(glob.glob(cluster_outfile+'*'))
-	memberNames = sorted(glob.glob(member_outfile+'*'))
+def readFile(filename,columns=None):
+    '''
+    Read a filename with fitsio.read and return an astropy table
+    '''
+    hdu = fitsio.read(filename, columns=columns)
+    return Table(hdu)
 
-    # Call function and load all data sets
-	out0 = readFiles(clusterNames)
-	out1 = readFiles(memberNames)
+def readFiles(filenames, columns=None):
+    '''
+    Read a set of filenames with fitsio.read and return a concatenated array
+    '''
+    out = []
+    i = 1
+    print
+    for f in filenames:
+        print('File {i}: {f}'.format(i=i, f=f))
+        out.append(fitsio.read(f, columns=columns))
+        i += 1
 
-	out0.write(cluster_outfile + ".fits")
-	out1.write(member_outfile + ".fits")
+    return Table(np.concatenate(out))
+
+# def writeFiles(member_outfile,cluster_outfile):
+# 	logging.info('Writing output')
+# 	clusterNames = sorted(glob.glob(cluster_outfile+'*'))
+# 	memberNames = sorted(glob.glob(member_outfile+'*'))
+
+#     # Call function and load all data sets
+# 	# out0 = readFiles(clusterNames)
+# 	# out1 = readFiles(memberNames)
+
+# 	out0.write(cluster_outfile + ".fits")
+# 	out1.write(member_outfile + ".fits")
 
 def getOutFile(out):
 	gal = [toto[0] for toto in out]
@@ -262,12 +284,12 @@ def writeSmallFiles(cluster_cat,galaxy_cat,nbatches):
 	cluster_list = [cluster_cat[islice[idx]:islice[idx+1]] for idx in range(nbatches)]
 	galaxy_list = [group_table_by(galaxy_cat,'CID',cid['CID']) for cid in cluster_list]
 
-	i = 0 
-	for gi,ci in zip(galaxy_list,cluster_list):
+	
+	for i in range(nbatches):
+		gi,ci = galaxy_list[i], cluster_list[i]
 		## writing small files
 		gi.write(m_out[i],format='fits',overwrite=True)
 		ci.write(c_out[i],format='fits',overwrite=True)
-		i+=1
 
 	return galaxy_list, cluster_list
 
@@ -330,7 +352,7 @@ def loadTables(kwargs,parallel=False,nbatches=20):
 			print('creating temporary files')
 
 			galaxies, clusters = loadTable(kwargs)
-			m_list, c_list = writeSmallFiles(clusters,galaxies,nbatches)
+			_, _ = writeSmallFiles(clusters,galaxies,nbatches)
 
 		return m_list, c_list
 
@@ -354,6 +376,7 @@ def computeMembAssignment():
 
 		m_list, c_list = loadTables(kwargs,parallel=True,nbatches=nbatches)
 
+		sleep(2)
 		out = Parallel(n_jobs=nprocess)(delayed(triggerMembAssignment)(idx,c_list[idx],m_list[idx],**kwargs) for idx in range(nbatches) )
 		g0, cat = getOutFile(out)
 

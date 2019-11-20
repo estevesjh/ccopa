@@ -14,12 +14,35 @@ import logging
 import esutil
 from time import time
 
+import fitsio
+
 cosmo = FlatLambdaCDM(H0=70, Om0=0.286)
 Mpc2cm = 3.086e+24
 
 ## -------------------------------
 ## auxiliary functions
-    
+
+def readfile(filename,columns=None):
+    '''
+    Read a filename with fitsio.read and return an astropy table
+    '''
+    hdu = fitsio.read(filename, columns=columns)
+    return Table(hdu)
+
+def loadfiles(filenames, columns=None):
+    '''
+    Read a set of filenames with fitsio.read and return a concatenated array
+    '''
+    out = []
+    i = 1
+    print
+    for f in filenames:
+        # print 'File {i}: {f}'.format(i=i, f=f)
+        out.append(fitsio.read(f, columns=columns))
+        i += 1
+
+    return Table(np.concatenate(out))
+
 def convertRA(ra):
     ra = np.where(ra>180,ra-360,ra)
     return ra
@@ -311,7 +334,12 @@ def doSomeCuts(zg1, mag, amag, flags_gold, crazy=[-1,4], zrange=[0.01,1.],magMin
 def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=False):
     logging.debug('Starting helper.readClusterCat()')
     
-    data = Table(getdata(catInFile))
+    # data = Table(getdata(catInFile))
+    if simulation:
+        colNames.append('R200')
+        colNames.append('M200')
+
+    data = readfile(catInFile,columns=colNames)
 
     if idx is not None:
         data=data[idx] # JCB: to divide and conquer
@@ -338,8 +366,8 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
         clusterOut = Table([id, ra, dec, z, DA, mp, mag_model_riz], names=('CID', 'RA', 'DEC', 'redshift', 'DA','massProxy', 'magLim'))
 
     if simulation:
-        r200 = data['R200b'][indices]
-        m200 = data['M200b'][indices]
+        r200 = data['R200'][indices]
+        m200 = data['M200'][indices]
         clusterOut = Table([id, ra, dec, z, DA, mag_model_riz, r200, m200], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim', 'R200_true','M200_true'))
 
     else:
@@ -353,7 +381,8 @@ def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window
     print('Uploading data table')
     t0 = time()
 
-    data = Table(getdata(galaxyInFile))
+    # data = Table(getdata(galaxyInFile))    
+    data = readfile(galaxyInFile,columns=colNames)
     
     tu = time()-t0
     print('time:',tu)
@@ -371,7 +400,7 @@ def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window
     
     mag = np.array(mag).transpose() ## 4 vector
 
-    amag = data['Mr'][:]
+    amag = -30.*np.ones_like(z)
     # multi = data['MULT_NITER_MODEL'][:]
 
     ## do cuts on the galaxy catalog
@@ -380,7 +409,7 @@ def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window
 
     print('Cut data table')
     t0 = time()
-    cid = data['HALOID']
+    # cid = data['HALOID']
     # idx, cid, radii, pdfz = cutGalaxyCatalog(ra[indices],dec[indices],z[indices],zerr[indices],clusters,rmax=rmax,r_in=r_in,r_out=r_out,
                             # length=radius,window=window)
     idx, cidx, radii = cutCircle(ra[indices],dec[indices],clusters,rmax=radius)
@@ -432,6 +461,10 @@ def readGalaxyCat(galaxyInFile, clusters, rmax=3,r_in=8,r_out=10, radius=12, win
         print('Please provide the Galaxy column names - exiting the code')
         exit()
 
+    if simulation:
+        colNames.append('HALOID')
+        colNames.append('TRUE_MEMBERS')
+    
     ## divide to conquer! (take squares around each cluster position)
     ## radius is the length of the square in Mpc
     galaxyData, cid, radii, PDFz = importTable(galaxyInFile,clusters,colNames,rmax=rmax,r_in=r_in,r_out=r_out,

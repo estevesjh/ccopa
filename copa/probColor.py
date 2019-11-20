@@ -110,9 +110,6 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
     # kernel = computeColorMagnitudeKDE(mag,color,weight=weight[0],bandwidth=bandwidth)
     # kernel_bkg = computeColorMagnitudeKDE(mag_bkg,color_bkg,weight=weight[1],bandwidth='silverman')
     # values = np.vstack([mag,color])
-
-    # kernel = computeColorKDE(color,weight=weight[0],bandwidth='silverman')
-    # kernel_bkg = computeColorKDE(color_bkg,weight=weight[1],bandwidth='silverman')
     
     kernel = computeColorKDE(color,weight=weight[0],bandwidth='silverman')
     kernel_bkg = computeColorKDE(color_bkg,weight=weight[1],bandwidth='silverman')
@@ -140,7 +137,7 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
     ## subtract field galaxies
     idx = monteCarloSubtraction(Pfield,mag,color)
     
-    off_threshold = [0.45,0.2,0.08]
+    off_threshold = [0.55,0.2,0.12]
     if len(idx)>5:
         color_cut_upper_level = np.percentile(color[idx],quartile)
         color_cut_lower_level = np.percentile(color[idx],3)
@@ -149,7 +146,6 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
         if off>off_threshold[tyColor]:
             std = getRedSequenceWidth(color[idx])
             color_cut_upper_level = 2*std + np.median(color[idx])
-            color_cut_lower_level = np.percentile(color[idx],5)
             print('color:',tyColor)
             print('std:',std)
 
@@ -164,7 +160,8 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
             weight = weight[0]
             weight = weight[idx]
 
-        kernel = computeColorKDE(color[idx],weight=weight,bandwidth='silverman')
+        # kernel = computeColorKDE(color[idx],weight=weight,silvermanFraction=10.)
+        kernel = computeColorKDE(color[idx],weight=weight,bandwidth=bandwidth)
         # kernel = computeColorMagnitudeKDE(mag[idx],color[idx],weight=weight,bandwidth=bandwidth)
         kde_sub = kernel(values)
 
@@ -192,7 +189,7 @@ def doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[None,None],bandwidth=0.05,cho
         
     return idx, pdf_i, pdf_i_bkg
 
-def computeColorPDF(gals,cat,ngals,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001],parallel=False, plot=True):
+def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001],parallel=False, plot=True):
     ''' compute probability distribution function for the 5 sequential colors 
         0:(g-r); 1:(g-i); 2:(r-i); 3:(r-z); 4:(i-z)
     '''
@@ -208,7 +205,8 @@ def computeColorPDF(gals,cat,ngals,nbkg,testPz=False,bandwidth=[0.008,0.001,0.00
     good_indices, = np.where(nbkg>0)
     for idx in good_indices:
         cls_id,z_cls = cat['CID'][idx], cat['redshift'][idx]
-        n_cls_field, nb = ngals[idx], nbkg[idx]
+        r2, nb = r200[idx], nbkg[idx]
+        # n_cls_field, nb = ngals[idx], nbkg[idx]
 
         galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)) #&(gals['mag'][2,:]<magLim[idx])
         galIDX.append(galaxies)
@@ -219,6 +217,8 @@ def computeColorPDF(gals,cat,ngals,nbkg,testPz=False,bandwidth=[0.008,0.001,0.00
         probz = np.array(gals['PDFz'][galaxies])
         probz_bkg = np.array(gals['PDFz'][bkgGalaxies])
 
+        n_cls_field = np.sum(probz)/(np.pi*r2**2)
+        
         if not parallel:  
             t0 = time()
             ## 5 Color distributions
@@ -334,18 +334,6 @@ def plotDoubleColor(color, pdf_all, pdf_bkg, pdf, title, nbkg, ncls_field, name_
     
     plt.savefig(name_cls+'_colorDistribution.png', bbox_inches = "tight")
 
-# def doGrid(xmin=16,xmax=24,ymin=-1,ymax=4):
-#     xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:200j]
-#     return xx,yy
-
-# def getKDE(x,y,xmin=16,xmax=24,ymin=-1,ymax=4):
-#     kernel = computeColorMagnitudeKDE(x,y)
-
-#     xx, yy = doGrid()
-#     positions = np.vstack([xx.ravel(), yy.ravel()])
-#     kde = np.reshape(kernel(positions).T, xx.shape)
-
-#     return kde
 
 def plotTrioColorMagDiagram(mag,color,mag_bkg,color_bkg,idx,name_cls='cluster'):
     plt.clf()
@@ -387,119 +375,3 @@ def plotTrioColorMagDiagram(mag,color,mag_bkg,color_bkg,idx,name_cls='cluster'):
         # axs[i].set_ylim([ymin,ymax])
 
     plt.savefig(name_cls+'_color-magnitude_subtraction.png')
-
-# def plotTrioColorMagPDF(mag,color,mag_bkg,color_bkg,idx,name_cls='cluster'):
-#     plt.clf()
-#     fig, axs = plt.subplots(1, 3, sharey=True,sharex=True, figsize=(12,4))
-#     fig.subplots_adjust(left=0.075,right=0.95,top=0.9,bottom=0.15,wspace=0.075)
-#     fig.tight_layout()
-
-#     xmin = mag[idx].min()+0.5
-#     xmax = mag[idx].max()+0.5
-
-#     ymin = color[idx].min() - np.std(color[idx])
-#     ymax = color[idx].max() + 3*np.std(color[idx])
-
-#     xx,yy = doGrid()
-#     kde = getKDE(mag,color)
-#     kde_bkg = getKDE(mag_bkg,color_bkg)
-#     kde_sub = getKDE(mag[idx],color[idx])
-
-
-#     cfset = axs[0].contourf(xx, yy, kde, cmap='Blues')
-#     cset = axs[0].contour(xx, yy, kde, colors='white')
-#     axs[0].clabel(cset, inline=1, fontsize=10)
-#     axs[0].set_title('Cluster+Field')
-
-#     cfset = axs[1].contourf(xx, yy, kde_bkg, cmap='Blues',alpha=0.7)
-#     cset = axs[1].contour(xx, yy, kde_bkg, colors='white')
-#     axs[1].clabel(cset, inline=1, fontsize=10)
-#     axs[1].set_title('Field')
-
-#     cfset = axs[2].contourf(xx, yy, kde_sub, cmap='Blues')
-#     cset = axs[2].contour(xx, yy, kde_sub, colors='white')
-#     axs[2].clabel(cset, inline=1, fontsize=10)
-#     axs[2].set_title('Cluster')
-
-#     axs[0].set_ylabel(r'$(g-r)$')
-#     for i in range(3):
-#         axs[i].set_xlabel(r'$r$')
-#         axs[i].set_xlim([xmin,xmax])
-#         axs[i].set_ylim([ymin,ymax])
-
-#     plt.savefig(name_cls+'_color-magnitude_subtraction_kernel.png')
-
-# def plotRingBackground():
-#     plt.clf()
-#     fig = plt.figure(figsize=(8,8))
-#     ax = fig.add_subplot(111)
-#     fig.subplots_adjust(left=0.1,right=0.95,top=0.975,bottom=0.025)
-#     ax.set_aspect('equal')
-
-#     ax.scatter(gal['dx'],gal['dy'],color='r',s=2)
-#     ax.scatter(gal_bkg_bad['dx'],gal_bkg_bad['dy'],color='lightgray',s=2)
-#     ax.scatter(gal_bkg['dx'],gal_bkg['dy'],color='k',s=2)
-#     ax.set_xlabel(r'$\Delta X $ [Mpc]')
-#     ax.set_ylabel(r'$\Delta Y$ [Mpc]')
-#     plt.savefig(name_cls+'_ring_bkg.png')
-
-# def computeColorPDF(gals,cat,r200,nbkg,magLim=None,bandwidth=0.01,norm=1,plot=False,testPz=False):
-#     ''' compute probability distribution function for the 3 sequential colors 
-#         1:(g-r) ; 2:(r-i); 3:(i-z)
-#         TO DO: 1) Test kde; 2) Test mag cut; 3) Test other colors (g-i),(r-z)
-#     '''
-#     ncls = len(cat)
-
-#     Flag = np.full((len(gals['Bkg']),3), True, dtype=bool)
-#     pdf = np.empty((1,3),dtype=float)
-#     pdf_bkg = np.empty((1,3),dtype=float)
-
-#     for idx in range(ncls):
-#         cls_id = cat['CID'][idx]
-#         magLim = cat['magLim'][idx] ## r,i,z-color
-#         r2, nb = r200[idx], nbkg[idx]
-
-#         all_gal, = np.where(gals['CID']==cls_id)
-#         galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)) #&(gals['mag'][2,:]<magLim[idx])
-#         bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id)) #&(gals['mag'][2,:]<magLim[idx])
-
-#         mag, mag_bkg = gals['mag'][galaxies], gals['mag'][bkgGalaxies]
-#         probz = np.where(gals['PDFz'][galaxies]<1e-5,1e-5,gals['PDFz'][galaxies])
-
-#         n_cls_field = len(probz)/(np.pi*r2**2)
-#         if testPz:
-#             n_cls_field = np.sum(probz)/(np.pi*r2**2)
-            
-#         t0 = time()
-#         ## 3 Color distributions
-#         colors3, colors3_bkg = [], []
-#         for i in range(3):
-#             magi, mag_bkgi = mag[:,i], mag_bkg[:,i]
-#             color = (mag[:,i]-mag[:,i+1])
-#             color_bkg = (mag_bkg[:,i]-mag_bkg[:,i+1])
-
-#             # idx, pdf_i, pdf_i_bkg = backgroundSubtraction(magi,color,mag_bkgi,color_bkg,n_cls_field,nb,prior=[probz,1])
-#             idx, pdf_i, pdf_i_bkg = backgroundSubtraction(magi,color,mag_bkgi,color_bkg,n_cls_field,nb)
-#             # pdf_i, pdf_i_bkg = np.ones_like(magi), np.ones_like(magi)
-
-#             colors3.append(pdf_i)
-#             colors3_bkg.append(pdf_i_bkg)
-
-#             Flag[galaxies[idx],i] = True
-#             if (i==1)&(plot):
-#                 plotTrioColorMagDiagram(magi,color,mag_bkgi,color_bkg,idx,name_cls='./check/probColor/Buzzard_%i'%cls_id)
-
-#         print('%i - Color prob. time:'%cls_id,time()-t0)
-#         c3 = np.array(colors3).transpose()
-#         c3_bkg = np.array(colors3_bkg).transpose()
-        
-#         pdf = np.vstack([pdf,c3])
-#         pdf_bkg = np.vstack([pdf_bkg,c3_bkg])
-
-#     return pdf[1:], pdf_bkg[1:], Flag
-
-
-
-# ncls = len(all_gal[all_gal['Rnorm']<0.15])/(area*0.15**2/r200**2)
-
-
