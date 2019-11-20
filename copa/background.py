@@ -59,21 +59,21 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
     nbkg = np.mean(lista2)
     mad = np.std(lista2)
 
-    ## Deal with projection effects
-    nl, nh = nbkg-3*mad,nbkg+(0.5*n_high)*mad
-    sectors, = np.where(lista2<nh)
+    # ## Deal with projection effects
+    # nl, nh = nbkg-3*mad,nbkg+(0.5*n_high)*mad
+    # sectors, = np.where(lista2<nh)
     
     idx_gal = np.empty(0,dtype=int)
-    for ni in sectors:
+    for ni in sectors0:
         w, = np.where( (theta <= (ni+1)*(360/nslices)) & (theta >= (ni)*(360/nslices)) & bkgMask )
         idx_gal = np.append(idx_gal,w)
     
     #### some arbritary conditions
-    if idx_gal.size<400:
-        idx_gal = np.empty(0,dtype=int)
-        for ni in sectors0:
-            w, = np.where( (theta <= (ni+1)*(360/nslices)) & (theta >= (ni)*(360/nslices)) & bkgMask )
-            idx_gal = np.append(idx_gal,w)
+    # if idx_gal.size<400:
+    #     idx_gal = np.empty(0,dtype=int)
+    #     for ni in sectors0:
+    #         w, = np.where( (theta <= (ni+1)*(360/nslices)) & (theta >= (ni)*(360/nslices)) & bkgMask )
+    #         idx_gal = np.append(idx_gal,w)
     
     Nbkg = (nbkg*nslices) ## mean number of galaxies in the region
 
@@ -96,7 +96,7 @@ def getDensityBkg(all_gal,theta,r_aper,r_in=6,r_out=8,nslices=72,method='pdf'):
     ## check if the nbkg is greater than the galaxy cluster density core!
     if nbkg>ngal:
         print('Error: nbkg > ngal')
-        nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices,n_high=1.25)
+        nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices+10,n_high=1.5)
     
     if np.count_nonzero(galMask) < 10: ## at least 10 galaxies
         nbkg = -1

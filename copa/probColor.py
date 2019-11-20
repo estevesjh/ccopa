@@ -95,28 +95,117 @@ def monteCarloSubtraction(p_field,mag,color):
 
     return idx_subtracted
 
-def getRedSequenceWidth(color):
-    color_cut_upper_level = np.percentile(color,75)
-    color_cut_lower_level = np.percentile(color,25)
+def getRedSequenceWidth(color, weights=None):
+    try:
+        from sklearn import mixture
+        # color_cut_upper_level = np.percentile(color,95)
+        # color_cut_lower_level = np.percentile(color,5)
 
-    cut, = np.where((color>=color_cut_lower_level)&(color<=color_cut_upper_level))
+        # cut, = np.where((color>=color_cut_lower_level)&(color<=color_cut_upper_level))
 
-    std = np.std(color[cut])
+        # color, weights = color[cut], weights[cut]
+        
+        gmm=mixture.GMM(n_components=3,tol=1e-7,n_iter=500)
+        # gmm = mixture.GaussianMixture(n_components=2)
+        fit = gmm.fit(color[:, np.newaxis],data_weights=weights[:, np.newaxis])
+        mu, sigma, alpha, conv =gmm.means_, np.sqrt(gmm.covars_), gmm.weights_, gmm.converged_
 
-    return std
+        idx = np.argmax(alpha)
+
+        std = sigma[idx]
+        mean = mu[idx]    
+
+        if not conv:
+            gmm=mixture.GMM(n_components=2)
+            # gmm = mixture.GaussianMixture(n_components=2)
+            fit = gmm.fit(color[:, np.newaxis],data_weights=weights[:, np.newaxis])
+            mu, sigma, alpha, conv =gmm.means_, np.sqrt(gmm.covars_), gmm.weights_, gmm.converged_
+            
+            idx = np.argmax(alpha)
+
+            std = sigma[idx]
+            mean = mu[idx]
+
+            if not conv:
+                print('look: not converging')
+                color_cut_upper_level = np.percentile(color,75)
+                color_cut_lower_level = np.percentile(color,25)
+
+                cut, = np.where((color>=color_cut_lower_level)&(color<=color_cut_upper_level))
+
+                std = np.std(color[cut])
+                mean = np.mean(color[cut])
+        
+    # print('alpha,mu,std:',alpha[idx],mean,std)
+    except:
+        color_cut_upper_level = np.percentile(color,75)
+        color_cut_lower_level = np.percentile(color,25)
+
+        cut, = np.where((color>=color_cut_lower_level)&(color<=color_cut_upper_level))
+
+        std = np.std(color[cut])
+        mean = np.mean(color[cut])
+
+    return std, mean
+
+def getColorUpperCut(color, weights=None):
+    from sklearn import mixture
+    gmm=mixture.GMM(n_components=3,tol=1e-7,n_iter=500)
+    # gmm = mixture.GaussianMixture(n_components=2)
+    fit = gmm.fit(color[:, np.newaxis],data_weights=weights[:, np.newaxis])
+    mu, sigma, alpha, conv =gmm.means_, np.sqrt(gmm.covars_), gmm.weights_, gmm.converged_
+
+    idx = np.argmax(alpha)
+
+    std = float(sigma[idx])
+    mean = float(mu[idx])
+
+    if not conv:
+        gmm=mixture.GMM(n_components=2)
+        # gmm = mixture.GaussianMixture(n_components=2)
+        fit = gmm.fit(color[:, np.newaxis],data_weights=weights[:, np.newaxis])
+        mu, sigma, alpha, conv =gmm.means_, np.sqrt(gmm.covars_), gmm.weights_, gmm.converged_
+        
+        idx = np.where( alpha==np.max(alpha) )
+        
+        std = float(sigma[idx])
+        mean = float(mu[idx])
+
+        if not conv:
+            print('look: not converging')
+            color_cut_upper_level = np.percentile(color,75)
+            color_cut_lower_level = np.percentile(color,25)
+
+            cut, = np.where((color>=color_cut_lower_level)&(color<=color_cut_upper_level))
+
+            std = np.std(color[cut])
+            mean = np.mean(color[cut])
+
+    upper_cut = mean+1.5*std
+    idx, = np.where(mu.flatten()>mean)
+    if idx.size>0:
+        toto = np.argmin(mu[idx])
+        m_out, s_out = mu[idx[toto]], sigma[idx[toto]]
+
+        if m_out-2*s_out>=mean:
+            print('this case')
+            cut1 = m_out-3*s_out
+            upper_cut = np.max([cut1,mean+2.*std])
+
+    print('mean',mu)
+    print('sigma',sigma)
+    return float(upper_cut)
 
 def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,None],bandwidth=0.05,quartile=95,tyColor=0):
+    probz,probz_bkg = weight
     ## compute kde    
     # kernel = computeColorMagnitudeKDE(mag,color,weight=weight[0],bandwidth=bandwidth)
     # kernel_bkg = computeColorMagnitudeKDE(mag_bkg,color_bkg,weight=weight[1],bandwidth='silverman')
     # values = np.vstack([mag,color])
     
-    kernel = computeColorKDE(color,weight=weight[0],bandwidth='silverman')
-    kernel_bkg = computeColorKDE(color_bkg,weight=weight[1],bandwidth='silverman')
+    kernel = computeColorKDE(color,weight=probz,bandwidth='silverman')
+    kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,bandwidth='silverman')
     
-    # kernel = computeColorKDE(color,weight=None,bandwidth='silverman')
-    # kernel_bkg = computeColorKDE(color_bkg,weight=None,bandwidth='silverman')
-
     values = color
 
     kde = kernel(values)
@@ -137,31 +226,19 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
     ## subtract field galaxies
     idx = monteCarloSubtraction(Pfield,mag,color)
     
-    off_threshold = [0.55,0.2,0.12]
     if len(idx)>5:
-        color_cut_upper_level = np.percentile(color[idx],quartile)
+        # std, mean = getRedSequenceWidth(color[idx],weights=probz[idx])
+        color_cut_upper_level = getColorUpperCut(color[idx],weights=probz[idx])
+        # color_cut_upper_level = mean+1.5*std
         color_cut_lower_level = np.percentile(color[idx],3)
-
-        off = color_cut_upper_level-np.median(color[idx])
-        if off>off_threshold[tyColor]:
-            std = getRedSequenceWidth(color[idx])
-            color_cut_upper_level = 2*std + np.median(color[idx])
-            print('color:',tyColor)
-            print('std:',std)
-
-
-        print('color median:',np.median(color[idx]))
-        print('color offset:',off)
-        print('\n')
+        
         cut, = np.where((color[idx]>=color_cut_lower_level)&(color[idx]<=color_cut_upper_level))
-        idx = idx[cut]
+        
+        if len(cut)>5:
+            idx = idx[cut]
 
-        if weight[0] is not None:
-            weight = weight[0]
-            weight = weight[idx]
-
-        # kernel = computeColorKDE(color[idx],weight=weight,silvermanFraction=10.)
-        kernel = computeColorKDE(color[idx],weight=weight,bandwidth=bandwidth)
+        # kernel = computeColorKDE(color[idx],weight=probz[idx],silvermanFraction=10.)
+        kernel = computeColorKDE(color[idx],weight=probz[idx],bandwidth=bandwidth)
         # kernel = computeColorMagnitudeKDE(mag[idx],color[idx],weight=weight,bandwidth=bandwidth)
         kde_sub = kernel(values)
 
