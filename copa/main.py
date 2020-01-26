@@ -18,8 +18,11 @@ import helper as helper
 import numpy as np
 from dask import compute, delayed
 from joblib import Parallel, delayed
+####
 
-def getConfig(section, item, boolean=False,
+file_path_script = __file__
+
+def getConfig(section, item, boolean=False, getAllVariables=False
 		userConfigFile="CCOPA_Config.ini"):
 
 	configFile = ConfigParser.ConfigParser()
@@ -46,9 +49,16 @@ def getConfig(section, item, boolean=False,
 
 	if (not boolean):
 		return configFile.get(section, item)
-
+		
 	else:
 		return configFile.getboolean(section, item)
+
+	if getAllVariables:
+		out = dict()
+		for key in configFile.items():
+    		for val in key[1]:
+        		out[val] = key[1][val]
+		return out
 
 def isOperationSet(operation,section="Operations"):
 	return getConfig(boolean=True, section=section,
@@ -94,7 +104,7 @@ def computePmem(g0,plim=0.01):
 	ptaken = np.ones_like(pmem,dtype=float)
 
 	## find common galaxies
-	gid = np.array(g0['GID']).astype(np.int)
+	gid = np.array(g0['GID'])#.astype(np.int)
 	commonGroups = commonValues(gid)
 
 	count = 0
@@ -131,7 +141,8 @@ def computePmem(g0,plim=0.01):
 def computeNgals(g,cat):
 	good_indices = np.where(cat['Nbkg']>0)
 	Ngals = membAssign.computeNgals(g,cat['CID'][good_indices],true_gals=False,col='Pmem')
-	cat['Ngals'] = Ngals
+	cat['Ngals'] = -1.
+	cat['Ngals'][good_indices] = Ngals
 	return cat
 
 def getClusterColsName(massProxy=False):
@@ -313,8 +324,8 @@ def getKwargs(m_out=None,c_out=None):
 	simulation = isOperationSet(operation="simulationTest")
 	computeR200 = isOperationSet(operation="computeR200")
 
-	r_in = round( float(getConfig('Cuts', "radius_bkg_in")),1)
-	r_out = round(float(getConfig('Cuts', "radius_bkg_out")),1)
+	r_in = round( float(getConfig('Cuts', "radius_bkg_in")), 1)
+	r_out = round( float(getConfig('Cuts', "radius_bkg_out")), 1)
 
 	plim = float(getConfig('Cuts', "p_low_lim"))
 	M200 = float(getConfig('Cuts', "M200"))
@@ -366,6 +377,9 @@ def computeMembAssignment():
 	# get initial time
 	total_t0 = time()
 
+	# get initial date
+	date0, date0_str = get_date_time()
+
 	parallel = isOperationSet(operation="parallel")
 
 	kwargs = getKwargs()
@@ -400,6 +414,30 @@ def computeMembAssignment():
 	logging.info('All done.')
 
 	logging.debug('Returning from ComputeMemberAsignment()')
+
+	### saving run info
+	run_info_file = 'run_info_%s.out'%(date0_str)
+	save_run_info(totalTime,date0,run_info_file=run_info_file)
+
+def get_date_time():
+	from datetime import datetime
+	now = datetime.now()
+	dt_string = now.strftime("%H:%M:%S_%m%d%Y")
+
+	return now,dt_string
+
+def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
+	import json
+
+	out_dict = getConfig(getAllVariables=True)
+	out_dict['dateTime'] = date.strftime("%H:%M:%S - %m/%d/%Y")
+	out_dict['TotalTime'] = str(round(totalTime,3)+' seconds'
+	out_dict['scriptPath'] = file_path_script
+
+	out_j = json.dumps(out_dict)
+	f=open(run_info_file,"w")
+	f.write(out_j)
+	f.close()
 
 if __name__ == "__main__":
 	computeMembAssignment()

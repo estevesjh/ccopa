@@ -98,13 +98,6 @@ def monteCarloSubtraction(p_field,mag,color):
 def getRedSequenceWidth(color, weights=None):
     try:
         from sklearn import mixture
-        # color_cut_upper_level = np.percentile(color,95)
-        # color_cut_lower_level = np.percentile(color,5)
-
-        # cut, = np.where((color>=color_cut_lower_level)&(color<=color_cut_upper_level))
-
-        # color, weights = color[cut], weights[cut]
-        
         gmm=mixture.GMM(n_components=3,tol=1e-7,n_iter=500)
         # gmm = mixture.GaussianMixture(n_components=2)
         fit = gmm.fit(color[:, np.newaxis],data_weights=weights[:, np.newaxis])
@@ -198,7 +191,7 @@ def getColorUpperCut(color, weights=None):
 
 def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,None],bandwidth=0.05,quartile=95,tyColor=0):
     probz,probz_bkg = weight
-    ## compute kde    
+    ## compute kde  
     # kernel = computeColorMagnitudeKDE(mag,color,weight=weight[0],bandwidth=bandwidth)
     # kernel_bkg = computeColorMagnitudeKDE(mag_bkg,color_bkg,weight=weight[1],bandwidth='silverman')
     # values = np.vstack([mag,color])
@@ -228,14 +221,14 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
     
     if len(idx)>5:
         # std, mean = getRedSequenceWidth(color[idx],weights=probz[idx])
-        color_cut_upper_level = getColorUpperCut(color[idx],weights=probz[idx])
-        # color_cut_upper_level = mean+1.5*std
-        color_cut_lower_level = np.percentile(color[idx],3)
+        # color_cut_upper_level = getColorUpperCut(color[idx],weights=probz[idx])
+        # # color_cut_upper_level = mean+1.5*std
+        # color_cut_lower_level = np.percentile(color[idx],3)
         
-        cut, = np.where((color[idx]>=color_cut_lower_level)&(color[idx]<=color_cut_upper_level))
+        # cut, = np.where((color[idx]>=color_cut_lower_level)&(color[idx]<=color_cut_upper_level))
         
-        if len(cut)>5:
-            idx = idx[cut]
+        # if len(cut)>5:
+        #     idx = idx[cut]
 
         # kernel = computeColorKDE(color[idx],weight=probz[idx],silvermanFraction=10.)
         kernel = computeColorKDE(color[idx],weight=probz[idx],bandwidth=bandwidth)
@@ -325,12 +318,12 @@ def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001
                 # kernel_true = kde.gaussian_kde(color[gals['True'][galaxies] ==True ],bw_method='silverman')
 
                 kernel = kde.gaussian_kde(color,bw_method='silverman',weights=probz)
-                kernel_true = kde.gaussian_kde(color[gals['True'][galaxies] ==True ],bw_method='silverman', weights=probz[gals['True'][galaxies] ==True])
+                # kernel_true = kde.gaussian_kde(color[gals['True'][galaxies] ==True ],bw_method='silverman', weights=probz[gals['True'][galaxies] ==True])
 
                 pdf_all_2 = kernel(color)
-                pdf_all_2_true = kernel_true(color)
+                # pdf_all_2_true = kernel_true(color)
 
-                plotDoubleColor(color, pdf_all_2, pdf_bkg_2, pdf_2, 'Cluster - %i at z=%.2f'%(cls_id,z_cls), nb, n_cls_field, name_cls=svname, lcolor=lcolor, pdf_true=pdf_all_2_true)
+                plotDoubleColor(color, pdf_all_2, pdf_bkg_2, pdf_2, 'Cluster - %i at z=%.2f'%(cls_id,z_cls), nb, n_cls_field, name_cls=svname, lcolor=lcolor, pdf_true=None)
 
         else:
             t0 = time()

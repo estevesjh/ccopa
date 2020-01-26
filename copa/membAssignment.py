@@ -1,6 +1,5 @@
 # !/usr/bin/env python
 
-
 import numpy as np
 import logging
 
@@ -232,7 +231,7 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     
     print('Computing R200')
     # r200 = radial.computeR200(gal, cat, nbkg2, rmax=rmax, defaultMass=M200, compute=computeR200)
-    r200 = 1.*np.ones_like(cat['R200_true'])
+    r200 = 1.*np.ones_like(cat['CID'])
     
     if simulation:
         nbkg0, BkgFlag0 = computeContamination(gal, cat['CID'], r200, np.array(cat['magLim']))
@@ -248,7 +247,7 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     print('Check size array: pdfr, pdfr_bkg',len(pdfr),len(pdfr_bkg),'\n')
 
     print('-> Redshift Distribution')
-    pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, r200, nbkg, plot=False)
+    pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, r200, nbkg, plot=True)
     print('Check size array: pdfz, pdfz_bkg',len(pdfz),len(pdfz_bkg),'\n')
 
     print('-> Color Distribution')

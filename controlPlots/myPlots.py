@@ -10,8 +10,6 @@ from astropy.table import Table, vstack
 from astropy.io.fits import getdata
 import matplotlib.pyplot as plt
 
-
-
 import sys
 import os
 sys.path.append(os.path.abspath("/home/johnny/Documents/Brandeis/CCOPA/lib/"))
@@ -19,6 +17,34 @@ import gaussianKDE as kde
 
 plt.style.use('seaborn')
 plt.rcParams.update({'font.size': 24})
+
+def sky_plot(RA,DEC,savefig='sky_plot.png'):
+    ############################
+    #Codigo para plotar coordenadas de objetos na esfera celeste
+    #############################
+    import matplotlib.pyplot as pplot
+    import astropy.coordinates as coord
+    from astropy import units as u
+    
+    ra = coord.Angle(RA*u.degree)
+    ra = ra.wrap_at(180*u.degree)
+    dec = coord.Angle(DEC*u.degree)
+
+    ##############
+    #Plotando os objetos
+    #import astropy.coordinates as coord
+    fig = pplot.figure(figsize=(8,6))
+    ax = fig.add_subplot(111, projection="aitoff")
+    plt.title("Buzzard v1.6 - 1000 GC")
+    ax.set_xticklabels(['14h','16h','18h','20h','22h','0h','2h','4h','6h','8h','10h'])
+    ax.grid(True)
+    ax.scatter(ra.radian, dec.radian, s=40, alpha=0.1, color='lightblue')
+    plt.subplots_adjust(top=0.95,bottom=0.0)
+    # ax.set_xticklabels(['10h','8h','6h','4h','2h','0h','20h','18h','16h','14h','12h'])
+    
+    fig.savefig(savefig)
+
+
 def getIndices(gindices,gkeys,ckeys):
     indicies = np.empty((0),dtype=int)
     indicies_into_cluster = np.empty((0),dtype=int)
@@ -197,36 +223,36 @@ def plotResidual(xtrue,x,y,save,kind=['Mu','z'],bins=None):
     plt.savefig(save,bbox_inches = "tight")
     plt.close()
 
-def plotN200M200():
-    bins=np.histogram(ngals_true,bins=8)[1]
-    indices, xbins = makeBin(ngals_true,width=2.,xvec=bins)
-    ybins = [np.mean(m200[idx]) for idx in indices]
-    yerr = [np.std(m200[idx]) for idx in indices]
+# def plotN200M200():
+#     bins=np.histogram(ngals_true,bins=8)[1]
+#     indices, xbins = makeBin(ngals_true,width=2.,xvec=bins)
+#     ybins = [np.mean(m200[idx]) for idx in indices]
+#     yerr = [np.std(m200[idx]) for idx in indices]
 
-    plt.errorbar(xbins,ybins,yerr=yerr,xerr=np.diff(bins)/2,fmt='o',markersize=4,color='gray',elinewidth=2,markeredgewidth=2,capsize=3,label='_nolabel_')
-    plt.scatter(ngals_true,m200,color='royalblue',s=50,alpha=0.3,label=r'$mag_{lim}=m_{BCG}+3$')
-    plt.xlabel(r'N$_{200}$')
-    plt.ylabel(r'M$_{200} \; [10^{14} M_{\odot}]$')
-    plt.xscale('log')
-    plt.legend()
-    plt.savefig('n_m200_buzzard.png',bbox_inches = "tight")
-    plt.close()
+#     plt.errorbar(xbins,ybins,yerr=yerr,xerr=np.diff(bins)/2,fmt='o',markersize=4,color='gray',elinewidth=2,markeredgewidth=2,capsize=3,label='_nolabel_')
+#     plt.scatter(ngals_true,m200,color='royalblue',s=50,alpha=0.3,label=r'$mag_{lim}=m_{BCG}+3$')
+#     plt.xlabel(r'N$_{200}$')
+#     plt.ylabel(r'M$_{200} \; [10^{14} M_{\odot}]$')
+#     plt.xscale('log')
+#     plt.legend()
+#     plt.savefig('n_m200_buzzard.png',bbox_inches = "tight")
+#     plt.close()
 
 
-    # bins=np.histogram(m200,bins=8)[1]
-    bins = np.array([3.,4.,5.,6.6,8.56,11.07,13.62,26.5])
-    indices, xbins = makeBin(m200,width=2.,xvec=bins)
-    ybins = [np.mean(ngals_true[idx]) for idx in indices]
-    yerr = [np.std(ngals_true[idx]) for idx in indices]
+#     # bins=np.histogram(m200,bins=8)[1]
+#     bins = np.array([3.,4.,5.,6.6,8.56,11.07,13.62,26.5])
+#     indices, xbins = makeBin(m200,width=2.,xvec=bins)
+#     ybins = [np.mean(ngals_true[idx]) for idx in indices]
+#     yerr = [np.std(ngals_true[idx]) for idx in indices]
 
-    plt.errorbar(xbins,ybins,xerr=yerr,yerr=np.diff(bins)/2,fmt='o',markersize=4,color='gray',elinewidth=2,markeredgewidth=2,capsize=3,label='_nolabel_')
-    plt.scatter(m200,ngals_true,color='royalblue',s=50,alpha=0.3,label=r'$mag_{lim}=m_{BCG}+3$')
-    plt.ylabel(r'N$_{200}$')
-    plt.xlabel(r'M$_{200} \; [10^{14} M_{\odot}]$')
-    plt.xscale('log')
-    plt.legend()
-    plt.savefig('n_m200_buzzard.png',bbox_inches = "tight")
-    plt.close()
+#     plt.errorbar(xbins,ybins,xerr=yerr,yerr=np.diff(bins)/2,fmt='o',markersize=4,color='gray',elinewidth=2,markeredgewidth=2,capsize=3,label='_nolabel_')
+#     plt.scatter(m200,ngals_true,color='royalblue',s=50,alpha=0.3,label=r'$mag_{lim}=m_{BCG}+3$')
+#     plt.ylabel(r'N$_{200}$')
+#     plt.xlabel(r'M$_{200} \; [10^{14} M_{\odot}]$')
+#     plt.xscale('log')
+#     plt.legend()
+#     plt.savefig('n_m200_buzzard.png',bbox_inches = "tight")
+#     plt.close()
 
 
 def plotIdentity(xtrue,x,save,kind='N'):
@@ -346,7 +372,7 @@ def colorz(zs, colors, richness, labely, limy, fgsize, outname, plottype):
             im=axs[i].hexbin(zs, colors[i],richness, gridsize=30, cmap=plt.cm.get_cmap('Blues_r', 14), reduce_C_function=np.sum, vmin=-50, vmax=500)
             # im=axs[i].hexbin(zs, colors[i], richness, gridsize=40, cmap='inferno',vmin=0.,vmax=1.)
             axs[i].set_xlabel('redshift')
-            axs[i].set_xlim(0.09,0.91)
+            # axs[i].set_xlim(0.09,0.91)
             axs[i].set_ylim(xlimi[0],xlimi[1])
             axs[i].set_ylabel(labely[i])
             if i==2:

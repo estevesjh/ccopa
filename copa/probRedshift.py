@@ -129,6 +129,7 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,bandwidth=0.008,plot=False,testPz=Fals
         
         if len(z_gal)>0:
             idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bandwidth,prior=[probz,probz_bkg])
+            # idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bandwidth,prior=[None,None])
             Flag[galaxies[idx]] = True
             
             # pdf_i = probz
@@ -169,7 +170,7 @@ def plotTrioRedshift(z,pdf_all,pdf_bkg,pdf,z_cls,nbkg,ncls_field,name_cls='Clust
     axs[1].scatter(z,N_sub,color='blue',label=r'Cluster Model')
     axs[1].set_title('Cluster')
 
-    axs[0].set_xlim(-0.2,0.2)
+    axs[0].set_xlim(-0.125,0.125)
 
     axs[0].set_ylabel(r'$ N $')
     axs[0].set_xlabel(r'$(z-z_{cls})/(1+z_{cls})$')
