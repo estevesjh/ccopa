@@ -28,7 +28,7 @@ def getConfig(section, item, boolean=False, getAllVariables=False,userConfigFile
 		if (section != 'Log'):
 			logging.warning(msg)
 		else:
-			print msg
+			print(msg)
 		return ""
 
 	# else save item value (debug)
@@ -37,7 +37,7 @@ def getConfig(section, item, boolean=False, getAllVariables=False,userConfigFile
 	if (section != 'Log'):
 		logging.debug(msg)
 	else:
-		print msg
+		print(msg)
 
 	if (not boolean):
 		return configFile.get(section, item)
