@@ -151,6 +151,7 @@ def get_date_time():
 
 def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
 	import json
+	import os
 	
 	out_dict = getConfig("Files","bla",getAllVariables=True)
 	out_dict['scriptPath'] = os.getcwd()
