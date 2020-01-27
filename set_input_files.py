@@ -18,7 +18,7 @@ def create_arg_parser():
 	parser.add_argument('outputPrefix',
 					help='Prefix to the output catalog')
 	
-return parser
+	return parser
 
 def checkFiles(parsed_args):
 	files = [parsed_args.galaxyInputFile,parsed_args.clusterInputFile]
