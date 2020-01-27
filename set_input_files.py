@@ -67,3 +67,4 @@ setInputFile('Files','clusterinputfile',args.outputPrefix+'.fits',userConfigFile
 
 setInputFile('Files','stellarmassoutprefix',args.outputPrefix+'_stellarMass_members_',userConfigFile=bmaConfigFile)
 setInputFile('Files','clusterstellarmassoutfile',args.outputPrefix+'_stellarMass.fits',userConfigFile=bmaConfigFile)
+
