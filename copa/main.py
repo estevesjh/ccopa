@@ -274,11 +274,11 @@ def getMembAssignmentFileList(nbatches):
 	cluster_infile = getConfig("Files","clusterInputFile")
 	member_infile = getConfig("Files","galaxyInputFile")
 
-	galaxyPrefix = './ccopa_tmp_cat/'+os.path.basename(member_infile)
-	clusterPrefix = './ccopa_tmp_cat/'+os.path.basename(cluster_infile)
+	# galaxyPrefix = './ccopa_tmp_cat/'+os.path.basename(member_infile)
+	# clusterPrefix = './ccopa_tmp_cat/'+os.path.basename(cluster_infile)
 
-	galaxyPrefix = os.path.splitext(galaxyPrefix)[0]
-	clusterPrefix = os.path.splitext(clusterPrefix)[0]
+	galaxyPrefix = os.path.splitext(member_infile)[0]
+	clusterPrefix = os.path.splitext(cluster_infile)[0]
 
 	m_list = [galaxyPrefix+'_%04i.fits'%(i+1) for i in range(nbatches)]
 	c_list = [clusterPrefix+'_%04i.fits'%(i+1) for i in range(nbatches)]
