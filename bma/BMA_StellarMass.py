@@ -152,7 +152,7 @@ def get_date_time():
 def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
 	import json
 	
-	out_dict = getConfig(getAllVariables=True)
+	out_dict = getConfig("Files","bla",getAllVariables=True)
 	out_dict['scriptPath'] = file_path_script
 	out_dict['dateTime'] = date.strftime("%H:%M:%S - %m/%d/%Y")
 	out_dict['TotalTime'] = str(round(totalTime,3))+' seconds'
