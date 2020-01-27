@@ -20,6 +20,13 @@ def getConfig(section, item, boolean=False, getAllVariables=False,userConfigFile
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)
 
+	if getAllVariables:
+		out = dict()
+		for key in configFile.items():
+			for val in key[1]:
+				out[val] = key[1][val]
+		return out
+
 	# if config item not found, raise log warning
 	if (not configFile.has_option(section, item)):
 		msg = '{item} from [{section}] NOT found in config file: {userConfigFile}!'.format(
@@ -44,13 +51,6 @@ def getConfig(section, item, boolean=False, getAllVariables=False,userConfigFile
 
 	else:
 		return configFile.getboolean(section, item)
-
-	if getAllVariables:
-		out = dict()
-		for key in configFile.items():
-			for val in key[1]:
-				out[val] = key[1][val]
-		return out
 
 def isOperationSet(operation,section="Operations"):
 	return getConfig(boolean=True, section=section,
