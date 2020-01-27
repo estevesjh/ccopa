@@ -247,7 +247,7 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     print('Check size array: pdfr, pdfr_bkg',len(pdfr),len(pdfr_bkg),'\n')
 
     print('-> Redshift Distribution')
-    pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, r200, nbkg, plot=True)
+    pdfz, pdfz_bkg, flagz = probz.computeRedshiftPDF(gal, cat, r200, nbkg, plot=False)
     print('Check size array: pdfz, pdfz_bkg',len(pdfz),len(pdfz_bkg),'\n')
 
     print('-> Color Distribution')
