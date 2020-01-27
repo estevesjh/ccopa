@@ -55,8 +55,8 @@ def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFil
 	if getAllVariables:
 		out = dict()
 		for key in configFile.items():
-    		for val in key[1]:
-        		out[val] = key[1][val]
+			for val in key[1]:
+				out[val] = key[1][val]
 		return out
 
 def isOperationSet(operation,section="Operations"):
