@@ -22,8 +22,7 @@ from joblib import Parallel, delayed
 
 file_path_script = __file__
 
-def getConfig(section, item, boolean=False, getAllVariables=False
-		userConfigFile="./copa/CCOPA_Config.ini"):
+def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/CCOPA_Config.ini"):
 
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)

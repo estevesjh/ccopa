@@ -15,8 +15,7 @@ import helperfunctions
 import clusterSMass_orig
 import colorModeling
 
-def getConfig(section, item, boolean=False,
-		userConfigFile="./bma/BMA_StellarMass_Config.ini"):
+def getConfig(section, item, boolean=False, getAllVariables=False,userConfigFile="./bma/BMA_StellarMass_Config.ini"):
 
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)
@@ -46,6 +45,12 @@ def getConfig(section, item, boolean=False,
 	else:
 		return configFile.getboolean(section, item)
 
+	if getAllVariables:
+		out = dict()
+		for key in configFile.items():
+    		for val in key[1]:
+        		out[val] = key[1][val]
+		return out
 
 def isOperationSet(operation,section="Operations"):
 	return getConfig(boolean=True, section=section,
