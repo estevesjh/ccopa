@@ -10,12 +10,12 @@ def header():
 def create_arg_parser():
     """"Creates and returns the ArgumentParser object."""
 
-    parser = argparse.ArgumentParser(description='Copcabana')
-    
+	parser = argparse.ArgumentParser(description='Copcabana')
+
 	parser.add_argument('galaxyInputFile',
-                    help='Filename to the input galaxy catalog.')
-    parser.add_argument('clusterInputFile',
-                    help='Filename to the input cluster catalog.')
+					help='Filename to the input galaxy catalog.')
+	parser.add_argument('clusterInputFile',
+					help='Filename to the input cluster catalog.')
 	parser.add_argument('outputPrefix',
 					help='Prefix to the output catalog')
 	
@@ -34,7 +34,7 @@ def setInputFile(section,item,value,userConfigFile='CCOPA_Config.ini'):
 	""" Set a new value for a item in a given config file"""
 
 	configFile = ConfigParser.ConfigParser()
-    configFile.read(userConfigFile)
+	configFile.read(userConfigFile)
 
 	configFile.set(section,item,value)
 
