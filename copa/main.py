@@ -23,7 +23,7 @@ from joblib import Parallel, delayed
 file_path_script = __file__
 
 def getConfig(section, item, boolean=False, getAllVariables=False
-		userConfigFile="CCOPA_Config.ini"):
+		userConfigFile="./copa/CCOPA_Config.ini"):
 
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)
@@ -436,7 +436,7 @@ def computeMembAssignment():
 	logging.debug('Returning from ComputeMemberAsignment()')
 
 	### saving run info
-	run_info_file = 'run_info_%s.out'%(date0_str)
+	run_info_file = './auxTable/run_info/copa_info_%s.out'%(date0_str)
 	save_run_info(totalTime,date0,run_info_file=run_info_file)
 
 if __name__ == "__main__":

@@ -281,6 +281,9 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     galCut['Pz'] = Pz
     galCut['Pc'] = Pc
     galCut['Pmem'] = Pmem
+    
+    galCut['pdfs'] = np.vstack(pdfs).transpose()
+    galCut['pdfs_bkg'] = np.vstack(pdfs_bkg).transpose()
 
     if method=='old':
         galCut['Pz'] = galCut['PDFz']

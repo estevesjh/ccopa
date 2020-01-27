@@ -43,8 +43,8 @@ def setInputFile(section,item,value,userConfigFile='CCOPA_Config.ini'):
 
 header()
 
-copaConfigFile="./COPA/CCOPA_Config.ini"
-bmaConfigFile="./BMAStellarMasses//BMA_StellarMass_Config.ini"
+copaConfigFile="./copa/CCOPA_Config.ini"
+bmaConfigFile="./bma/BMA_StellarMass_Config.ini"
 
 arg_parser = create_arg_parser()
 args = arg_parser.parse_args(sys.argv[1:])
