@@ -8,8 +8,7 @@ def header():
 	print(5*'--'+'Welcome to Copacabana'+5*'--'+'\n')
 
 def create_arg_parser():
-    """"Creates and returns the ArgumentParser object."""
-
+	""""Creates and returns the ArgumentParser object."""
 	parser = argparse.ArgumentParser(description='Copcabana')
 
 	parser.add_argument('galaxyInputFile',
