@@ -383,14 +383,12 @@ def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
 	out_dict = getConfig(getAllVariables=True)
 	out_dict['scriptPath'] = file_path_script
 	out_dict['dateTime'] = date.strftime("%H:%M:%S - %m/%d/%Y")
-	out_dict['TotalTime'] = str(round(totalTime,3)+' seconds'
+	out_dict['TotalTime'] = str(round(totalTime,3))+' seconds'
 	
 	out_j = json.dumps(out_dict)
 	f=open(run_info_file,"w")
 	f.write(out_j)
 	f.close()
-	
-	pass
 
 def computeMembAssignment():
 	logging.info('Starting COPACABANA - COlor Probabilistic Assignment for Clusters and Bayesian ANAlysis')
