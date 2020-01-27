@@ -8,13 +8,13 @@ from scipy.stats import uniform, norm, stats
 from astropy.table import Table, vstack
 from astropy.io.fits import getdata
 import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns; sns.set(color_codes=True)
+#import pandas as pd
+#import seaborn as sns; sns.set(color_codes=True)
 
 from myPlots import *
 
 plt.rcParams.update({'font.size': 16})
-sns.set_style("whitegrid")
+# sns.set_style("whitegrid")
 
 def plot_scatter_hist(x,y,weights=None,xtrue=None,ytrue=None,xlabel='redshift',ylabel=r'$\mu_{\star}\,\,[10^{12}\,M_{\odot}]$',save='./img/bla.png'):
     compare = (xtrue is not None) and (ytrue is not None)
@@ -48,13 +48,13 @@ def plot_scatter_hist(x,y,weights=None,xtrue=None,ytrue=None,xlabel='redshift',y
     binx = np.linspace(0.0, xmax, num=50)
     biny = np.linspace(ymin, ymax, num=105)  # 1500/100.
 
-    pal = sns.dark_palette("#3498db", as_cmap=True)
+    # pal = sns.dark_palette("#3498db", as_cmap=True)
     # sns.kdeplot(x, y, ax=scatter_axes, cmap=pal, zorder=3)  # n_levels=10
 
     scatter_axes.set_xlabel(xlabel, fontsize=25)
     scatter_axes.set_ylabel(ylabel, fontsize=25)
 
-    scatter_axes.plot(x, y, color='b', ls='', marker='o', alpha=0.25, zorder=0)
+    scatter_axes.plot(x, y, s=, color='b', ls='', marker='o', alpha=0.25, zorder=0)
     scatter_axes.axhline(np.mean(y),linestyle='--',color='b')
 
     x_hist_axes.hist(x, bins=binx, normed=False, alpha=0.85, color='b')
@@ -225,8 +225,8 @@ compareDatasets = True
 ii=0
 print('Geting Data')
 
-file_gal = '/home/johnny/Documents/Brandeis/CCOPA/out/Chinchilla-0Y1a_v1.6_truth_1000_highMass_ccopa_pz_005_Rfixed_members_stellarMass.fits'
-file_cls = '/home/johnny/Documents/Brandeis/CCOPA/out/Chinchilla-0Y1a_v1.6_truth_1000_highMass_ccopa_pz_005_Rfixed_stellarMass.fits'
+file_gal = './out/Chinchilla-0Y1a_v1.6_truth_50_ccopa_pz_005_Rfixed_members_stellarMass.fits'
+file_cls = './out/Chinchilla-0Y1a_v1.6_truth_50_ccopa_pz_005_Rfixed_stellarMass.fits' 
 
 # file_gal = '/home/johnny/Documents/Github/ccopa/out/splus_STRIPE82_master_DR2_SN_10_galaxyClusters_pmem_members_stellarMass.fits'
 # file_cls = '/home/johnny/Documents/Github/ccopa/out/splus_STRIPE82_master_DR2_SN_10_galaxyClusters_pmem_stellarMass.fits'

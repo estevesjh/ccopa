@@ -48,7 +48,7 @@ def main():
 	from copa.makeHTML import sections, build_index_page
 
 	filename = 'index.html'
-	run_info_file = './auxTable/run_info_12:03:12_01262020.out'
+	run_info_file = './auxTable/run_info/copa_17:18:13_01272020.out'
 
 	f1, f2, f3 = get_image_path()
 	info_dict = json.load(open(run_info_file,"r"))
