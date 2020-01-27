@@ -371,6 +371,26 @@ def loadTables(kwargs,parallel=False,nbatches=20):
 		galaxies, clusters = loadTable(kwargs)
 		return galaxies, clusters
 
+def get_date_time():
+	from datetime import datetime
+	now = datetime.now()
+	dt_string = now.strftime("%H:%M:%S_%m%d%Y")
+
+	return now,dt_string
+
+def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
+	import json
+
+	out_dict = getConfig(getAllVariables=True)
+	out_dict['dateTime'] = date.strftime("%H:%M:%S - %m/%d/%Y")
+	out_dict['TotalTime'] = str(round(totalTime,3)+' seconds'
+	out_dict['scriptPath'] = file_path_script
+
+	out_j = json.dumps(out_dict)
+	f=open(run_info_file,"w")
+	f.write(out_j)
+	f.close()
+	
 def computeMembAssignment():
 	logging.info('Starting COPACABANA - COlor Probabilistic Assignment for Clusters and Bayesian ANAlysis')
 
@@ -418,26 +438,6 @@ def computeMembAssignment():
 	### saving run info
 	run_info_file = 'run_info_%s.out'%(date0_str)
 	save_run_info(totalTime,date0,run_info_file=run_info_file)
-
-def get_date_time():
-	from datetime import datetime
-	now = datetime.now()
-	dt_string = now.strftime("%H:%M:%S_%m%d%Y")
-
-	return now,dt_string
-
-def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
-	import json
-
-	out_dict = getConfig(getAllVariables=True)
-	out_dict['dateTime'] = date.strftime("%H:%M:%S - %m/%d/%Y")
-	out_dict['TotalTime'] = str(round(totalTime,3)+' seconds'
-	out_dict['scriptPath'] = file_path_script
-
-	out_j = json.dumps(out_dict)
-	f=open(run_info_file,"w")
-	f.write(out_j)
-	f.close()
 
 if __name__ == "__main__":
 	computeMembAssignment()
