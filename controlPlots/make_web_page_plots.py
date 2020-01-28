@@ -9,15 +9,18 @@ from astropy.table import Table, vstack
 from astropy.io.fits import getdata
 import matplotlib.pyplot as plt
 #import pandas as pd
-#import seaborn as sns; sns.set(color_codes=True)
+import seaborn as sns; sns.set(color_codes=True)
 
 from myPlots import *
 
 plt.rcParams.update({'font.size': 16})
-# sns.set_style("whitegrid")
+sns.set_style("whitegrid")
 
 def plot_scatter_hist(x,y,weights=None,xtrue=None,ytrue=None,xlabel='redshift',ylabel=r'$\mu_{\star}\,\,[10^{12}\,M_{\odot}]$',save='./img/bla.png'):
     compare = (xtrue is not None) and (ytrue is not None)
+    
+    if weights is not None:scale = 100*weights**(1/2)+1
+    else: scale=50
 
     fig = plt.figure(figsize=(12,10))
 
@@ -48,26 +51,26 @@ def plot_scatter_hist(x,y,weights=None,xtrue=None,ytrue=None,xlabel='redshift',y
     binx = np.linspace(0.0, xmax, num=50)
     biny = np.linspace(ymin, ymax, num=105)  # 1500/100.
 
-    # pal = sns.dark_palette("#3498db", as_cmap=True)
+    pal = sns.dark_palette("#3498db", as_cmap=True)
     # sns.kdeplot(x, y, ax=scatter_axes, cmap=pal, zorder=3)  # n_levels=10
 
     scatter_axes.set_xlabel(xlabel, fontsize=25)
     scatter_axes.set_ylabel(ylabel, fontsize=25)
 
-    scatter_axes.plot(x, y, s=, color='b', ls='', marker='o', alpha=0.25, zorder=0)
+    scatter_axes.scatter(x, y, s=scale, color='b', marker='o', alpha=0.25, zorder=0)
     scatter_axes.axhline(np.mean(y),linestyle='--',color='b')
 
-    x_hist_axes.hist(x, bins=binx, normed=False, alpha=0.85, color='b')
-    y_hist_axes.hist(y, bins=biny, normed=False, orientation='horizontal', alpha=0.85, color='b')
-    y_hist_axes.axhline(np.mean(y),linestyle='--',orientation='horizontal', color='b')
+    x_hist_axes.hist(x, bins=binx, weights=weights, normed=False, alpha=0.85, color='b')
+    y_hist_axes.hist(y, bins=biny, weights=weights, normed=False, orientation='horizontal', alpha=0.85, color='b')
+    y_hist_axes.axhline(np.mean(y),linestyle='--', color='b')
 
     if compare:
-        scatter_axes.plot(xtrue,ytrue, color='gray', ls='', marker='.', alpha=0.35, zorder=1)
+        scatter_axes.scatter(xtrue,ytrue, s=25, color='gray', marker='o', alpha=0.35, zorder=1)
         scatter_axes.axhline(np.mean(ytrue),linestyle='--',color='gray')
 
         x_hist_axes.hist(xtrue, bins=binx, color='gray', histtype='stepfilled', alpha=0.65, normed=False)
         y_hist_axes.hist(ytrue, bins=biny, color='gray', histtype='stepfilled', alpha=0.65, normed=False,orientation='horizontal')
-        y_hist_axes.axhline(np.mean(ytrue),linestyle='--',color='gray',orientation='horizontal')
+        y_hist_axes.axhline(np.mean(ytrue),linestyle='--',color='gray')
 
     x_hist_axes.set_yticklabels([])
     y_hist_axes.set_xticklabels([])
@@ -163,7 +166,7 @@ def makeBin(variable, nbins=10., xvec=None):
 
     return idx, xbins
 
-def get_binned_variables(x,xedges=None):
+def get_binned_variables(x,y,xedges=None):
     
     if xedges is None:
         xedges = np.linspace(np.nanmin(x),np.nanmax(x),6)
@@ -225,8 +228,8 @@ compareDatasets = True
 ii=0
 print('Geting Data')
 
-file_gal = './out/Chinchilla-0Y1a_v1.6_truth_50_ccopa_pz_005_Rfixed_members_stellarMass.fits'
-file_cls = './out/Chinchilla-0Y1a_v1.6_truth_50_ccopa_pz_005_Rfixed_stellarMass.fits' 
+file_gal = './out/Chinchilla-0Y1a_v1.6_truth_1000_highMass_ccopa_pz_005_Rfixed_members_stellarMass.fits'
+file_cls = './out/Chinchilla-0Y1a_v1.6_truth_1000_highMass_ccopa_pz_005_Rfixed_stellarMass.fits' 
 
 # file_gal = '/home/johnny/Documents/Github/ccopa/out/splus_STRIPE82_master_DR2_SN_10_galaxyClusters_pmem_members_stellarMass.fits'
 # file_cls = '/home/johnny/Documents/Github/ccopa/out/splus_STRIPE82_master_DR2_SN_10_galaxyClusters_pmem_stellarMass.fits'
@@ -251,9 +254,9 @@ MU = cat['MU']
 sum_ssfr = cat['SSFR']
 sum_smass = cat['SUM_MASS']
 
-Nred = cat['Nred']
-Nblue = cat['Nblue']
-red_fraction = Nred/(Nred+Nblue)
+# Nred = cat['Nred']
+# Nblue = cat['Nblue']
+# red_fraction = Nred/(Nred+Nblue)
 
 # richness = cat['richness'][:]*1e3
 # sn = cat['sn'][:]
@@ -263,8 +266,8 @@ plot_group_by_redshift(redshift, ngals, ylog=False, ylabel = r'N$_{gals}$', xlab
 plot_group_by_redshift(redshift, norm, ylog=False, ylabel = r'Norm', xlabel = r'redshift', save='./img/redshift_norm.png')
 plot_group_by_redshift(redshift, nbkg, ylim=(0.,100.),ylog=False, ylabel = r'N$_{bkg}$', xlabel = r'redshift', save='./img/redshift_nbkg.png')
 
-w, = np.where(red_fraction>=0.)
-plot_group_by_redshift(redshift[w], red_fraction[w], ylog=False, ylabel = r'$f_{red}$', xlabel = r'redshift', save='./img/redshift_nred.png')
+# w, = np.where(red_fraction>=0.)
+# plot_group_by_redshift(redshift[w], red_fraction[w], ylog=False, ylabel = r'$f_{red}$', xlabel = r'redshift', save='./img/redshift_nred.png')
 # plot_lin_reg(ngals,richness,xlabel = r'N$_{gals}$', ylabel = r'richness [1e-3]', save='./img/richness_ngals.png')
 # plot_lin_reg(ngals,sn, xlabel = r'N$_{gals}$', ylabel = r'SN', save='./img/sn_ngals.png')
 
@@ -294,11 +297,11 @@ gr = mag_g - mag_r
 ri = mag_r - mag_i
 iz = mag_i - mag_z
 
-# mask = gal['True']==True
+mask = gal['True']==True
 
-plot_scatter_hist(zcls,amag,weights=pmem,ylabel=r'$M_{r}$',save='./img/amag_evolution.png')
-plot_scatter_hist(zcls,smass,weights=pmem, ylabel=r'$log(M_{*}) \: [M_{\odot}]$',save='./img/smass_evolution.png')
-plot_scatter_hist(zcls,ssfr,weights=pmem, ylabel=r'$log(sSFR)$', save='./img/ssfr_evolution.png')
-plot_scatter_hist(zcls,gi_o,weights=pmem, ylabel=r'$(g-i)_{rest-frame}$', save='./img/gi_rest_frame_evolution.png')
+plot_scatter_hist(zcls,amag,weights=pmem, xtrue=zcls[mask], ytrue=amag[mask], ylabel=r'$M_{r}$',save='./img/amag_evolution.png')
+plot_scatter_hist(zcls,smass,weights=pmem, xtrue=zcls[mask], ytrue=smass[mask], ylabel=r'$log(M_{*}) \: [M_{\odot}]$',save='./img/smass_evolution.png')
+plot_scatter_hist(zcls,ssfr,weights=pmem, xtrue=zcls[mask], ytrue=ssfr[mask], ylabel=r'$log(sSFR)$', save='./img/ssfr_evolution.png')
+plot_scatter_hist(zcls,gi_o,weights=pmem, xtrue=zcls[mask], ytrue=gi_o[mask], ylabel=r'$(g-i)_{rest-frame}$', save='./img/gi_rest_frame_evolution.png')
 
 print('fim')

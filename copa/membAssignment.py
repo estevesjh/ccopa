@@ -298,7 +298,7 @@ def clusterCalc(gal, cat, member_outfile=None, cluster_outfile=None,
     galCut['redshift'][gidx] = cat['redshift'][cidx]
 
     Colnames=['CID', 'redshift', 'GID', 'RA', 'DEC', 'R', 'z', 'zerr', 'mag', 'magerr',
-              'Pr', 'Pz', 'Pc', 'Pmem','FLAG_C','FLAG_Z']
+              'Pr', 'Pz', 'Pc', 'Pmem','FLAG_C','FLAG_Z','pdfs','pdfs_bkg']
 
     if simulation:
         Colnames.append('z_true')
