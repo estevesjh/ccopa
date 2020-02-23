@@ -166,12 +166,12 @@ def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
     ngals, keys = [],[]
     
     count0 = 0
-    good_indices, = np.where(nbkg>0)
-    for idx in good_indices:
+    for idx in range(len(cat)):
         cls_id = cat['CID'][idx]
         ra_c, dec_c = cat['RA'][idx], cat['DEC'][idx]
         magLim_i = cat['magLim'][idx,1] ### mi cut
-        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=rmax[idx])&(gals['mag'][:,2]<magLim_i))
+        # indices, = np.where((gals['CID']==cls_id)&(gals['R']<=rmax[idx])&(gals['mag'][:,2]<magLim_i))
+        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=4)&(gals['mag'][:,2]<magLim_i))
         
         pz = gals['PDFz'][indices]
         theta = calcTheta(gals['RA'][indices],gals['DEC'][indices],ra_c,dec_c)
@@ -180,6 +180,7 @@ def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
         if len(indices)>0:
             galMask = np.full(len(pz), True, dtype=bool)
             galsFlag[indices] = True
+
             new_idx = np.arange(count0,count0+len(indices),1,dtype=int)
             ng, _ = calcNbkg(pz,theta,galMask, nslices=nslices,n_high=2.)
             # ng = np.sum(pz)

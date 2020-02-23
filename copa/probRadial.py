@@ -174,6 +174,14 @@ def doPDF(radii,R200,c=3):
     density = profileNFW(radii,R200,c=c) ## without norm
     return density
 
+def norm_const_integrand(R,R200,c):
+    return profileNFW(R,R200,c=c)*2*np.pi*R
+
+def norm_constant(R200,c=3):
+    integral,err=integrate.quad(norm_const_integrand,0.,R200,args=(R200,c))
+    const=1/integral
+    return const
+    
 def convertM200toR200(M200,z):
     ## M200 in solar masses
     ## R200 in Mpc
@@ -213,7 +221,7 @@ def computeN200(gals, cat, r200, nbkg, testPz=False):
     N200 = []
     keys = []
     count0 = 0
-    good_indices, = np.where(nbkg>0)
+    good_indices, = np.where(nbkg>=0)
     for idx in good_indices:
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         magLim_i = cat['magLim'][idx,1] ## magnitude cut in the i band
@@ -243,22 +251,13 @@ def computeN200(gals, cat, r200, nbkg, testPz=False):
 
     return np.array(N200), galsFlag, keys
 
-def norm_const_integrand(R,R200,c):
-    return profileNFW(R,R200,c=c)*2*np.pi*R
-
-def norm_constant(R200,c=3):
-    integral,err=integrate.quad(norm_const_integrand,0.,R200,args=(R200,c))
-    const=1/integral
-    return const
-
-def computeRadialPDF(gals,cat,r200,nbkg,c=3.53,plot=False):
+def computeRadialPDF(gals,cat,r200,nbkg,keys,c=3.53,plot=False):
     '''it's missing the normalization factor
     '''
     pdf = np.empty(0,dtype=float)
     pdf_bkg = np.empty(0,dtype=float)
-    
-    good_indices, = np.where(nbkg>0)
-    for idx in good_indices:
+
+    for idx,_ in enumerate(keys):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2 = r200[idx]
 

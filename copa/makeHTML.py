@@ -52,12 +52,13 @@ class sections:
 		self.id = name.lower()
 		self.name = name
 		
-		if title is not None: self.title = title
-		else: self.title = name
+		self.k = next(self._ks)
+
+		if title is not None: self.title = '%i -'%(self.k) + title
+		else: self.title = '%i -'%(self.k) + name
 
 		self.section_syntax = self.make_section_header()
-		self.k = next(self._ks)
-	
+		
 	def make_section_header(self):
 		return SECTION%dict(id=self.id,title=self.title)
 
@@ -74,8 +75,9 @@ class sections:
 
 	def add_figure(self,files,caption=None):
 		if caption is None:
-			block = '\n'.join([FIGURE%dict(fname=img, caption ='Figure %i.%i'%(self.k,i)) for i,img in enumerate(files)])
+			caption = ['Figure %i.%i '%(self.k,i) for i,img in enumerate(files)]
 		else:
+			caption = ['Figure %i.%i :'%(self.k,i)+ci for i,ci in enumerate(caption)]
 			block = '\n'.join([FIGURE%dict(fname=img, caption =ci) for img,ci in zip(files,caption) ])
 
 		return self.add_to_section(block)
@@ -158,7 +160,14 @@ body, h1,h2,h3,h4,h5,h6 {font-family: "Montserrat", sans-serif}
 		<p>Color Probabilistic Assignment for Clusters And Bayesian Analysis.</p>
 		<!-- img src="/w3images/man_smoke.jpg" alt="boy" class="w3-image" width="992" height="1108"-->
 	</header>
-	
+
+<div class="w3-content w3-justify w3-text-grey w3-padding-64">
+<h1> Welcome our verification page! </h1>
+
+<p> If it is your first time here and you want to know more about how it is our analalysis, 
+please read at this <a href="https://github.com/estevesjh/ccopa"> link </a> </p>
+</div>
+
 %(content)s
 
   <!-- Footer -->

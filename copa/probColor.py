@@ -16,7 +16,7 @@ from six import string_types
 
 def interpData(x,y,x_new):
     out = np.empty(x_new.shape, dtype=y.dtype)
-    out = interp1d(x, y, kind='linear', copy=False)(x_new)
+    out = interp1d(x, y, kind='linear', fill_value='extrapolate', copy=False)(x_new)
     # yint = interp1d(x,y,kind='linear',fill_value='extrapolate')
     return out
 
@@ -79,11 +79,11 @@ def computeColorKDE(x,weight=None,bandwidth='silverman',silvermanFraction=None):
 
     return kernel
 
-def monteCarloSubtraction(p_field,mag,color):
+def monteCarloSubtraction(p_field,color):
     """input: field probability
        return: indices of the non field galaxies
     """
-    nsize = len(mag)
+    nsize = len(color)
     idx_subtracted = np.empty(0,dtype=int)
 
     for i in range(nsize):
@@ -189,8 +189,8 @@ def getColorUpperCut(color, weights=None):
     print('sigma',sigma)
     return float(upper_cut)
 
-def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,None],bandwidth=0.05,quartile=95,tyColor=0):
-    probz,probz_bkg = weight
+def backgroundSubtraction(values,color,color_bkg,ncls,nbkg,weight=[None,None],bandwidth=0.05,quartile=95,tyColor=0):
+    probz, probz_bkg = weight
     ## compute kde  
     # kernel = computeColorMagnitudeKDE(mag,color,weight=weight[0],bandwidth=bandwidth)
     # kernel_bkg = computeColorMagnitudeKDE(mag_bkg,color_bkg,weight=weight[1],bandwidth='silverman')
@@ -198,8 +198,6 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
     
     kernel = computeColorKDE(color,weight=probz,bandwidth='silverman')
     kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,bandwidth='silverman')
-    
-    values = color
 
     kde = kernel(values)
     kde_bkg = kernel_bkg(values)
@@ -211,30 +209,19 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
     Ncls_field = ncls*kde
     Nfield = nbkg*kde_bkg
     
-    Pfield = (Nfield/Ncls_field)
+    Pfield = (Nfield/(Ncls_field+1e-6))
 
     # print('Pfiled>1: ',np.count_nonzero(Pfield>1)/len(mag),'%')
     # Pfield = np.where(Pfield>1,1.,Pfield)
 
     ## subtract field galaxies
-    idx = monteCarloSubtraction(Pfield,mag,color)
+    idx = monteCarloSubtraction(Pfield,color)
     
     if len(idx)>5:
-        # std, mean = getRedSequenceWidth(color[idx],weights=probz[idx])
-        # color_cut_upper_level = getColorUpperCut(color[idx],weights=probz[idx])
-        # # color_cut_upper_level = mean+1.5*std
-        # color_cut_lower_level = np.percentile(color[idx],3)
-        
-        # cut, = np.where((color[idx]>=color_cut_lower_level)&(color[idx]<=color_cut_upper_level))
-        
-        # if len(cut)>5:
-        #     idx = idx[cut]
-
         # kernel = computeColorKDE(color[idx],weight=probz[idx],silvermanFraction=10.)
         kernel = computeColorKDE(color[idx],weight=probz[idx],bandwidth=bandwidth)
         # kernel = computeColorMagnitudeKDE(mag[idx],color[idx],weight=weight,bandwidth=bandwidth)
         kde_sub = kernel(values)
-
         
     else:
         # print('Color Error: not enough galaxies')
@@ -242,24 +229,28 @@ def backgroundSubtraction(mag,color,mag_bkg,color_bkg,ncls,nbkg,weight=[None,Non
         kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
         # kde_bkg = np.zeros_like(mag)
 
-    return idx, kde_sub, kde_bkg
+    return kde_sub, kde_bkg
 
-def doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[None,None],bandwidth=0.05,choose_color=[0,1]):
+def doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[None,None],bandwidth=0.05,choose_color=[0,1]):
     quartile=98
     i,i2 = choose_color
 
-    magi, mag_bkgi = mag[:,i2], mag_bkg[:,i2]
     color = (mag[:,i]-mag[:,i2])
+    color2 = (mag2[:,i]-mag2[:,i2])
     color_bkg = (mag_bkg[:,i]-mag_bkg[:,i2])
 
-    if (magi.size > 3)&(mag_bkgi.size >3):
-        idx, pdf_i, pdf_i_bkg = backgroundSubtraction(magi,color,mag_bkgi,color_bkg,n_cls_field,nb,weight=weight,bandwidth=bandwidth,quartile=quartile,tyColor=i)
-    else:
-        idx, pdf_i, pdf_i_bkg = np.full(magi.size,False),np.full(magi.size,1),np.full(magi.size,1)
-        
-    return idx, pdf_i, pdf_i_bkg
+    if (color.size > 3)&(color_bkg.size >3):
+        k1_i, k1_i_bkg = backgroundSubtraction(color_vec,color,color_bkg,n_cls_field,nb,weight=weight,bandwidth=bandwidth,quartile=quartile,tyColor=i)
+        pdf_i = interpData(color_vec,k1_i,color2)
+        pdf_i_bkg = interpData(color_vec,k1_i_bkg,color2)
 
-def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001],parallel=False, plot=True):
+    else:
+        pdf_i, pdf_i_bkg = np.full(color2.size,1),np.full(color2.size,1)
+        k1_i, k1_i_bkg = np.full(color_vec.size,1),np.full(color_vec.size,1)
+        
+    return k1_i, k1_i_bkg, pdf_i, pdf_i_bkg
+
+def computeColorPDF(gals,cat,r200,nbkg,keys,color_vec,bandwidth=[0.008,0.001,0.001],parallel=False, plot=True):
     ''' compute probability distribution function for the 5 sequential colors 
         0:(g-r); 1:(g-i); 2:(r-i); 3:(r-z); 4:(i-z)
     '''
@@ -271,19 +262,24 @@ def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001
 
     results0, results1, results2, results3, results4 = [], [], [], [], []
     galIDX = []
+
+    kernels, kernels_field = [], []
     
-    good_indices, = np.where(nbkg>0)
-    for idx in good_indices:
+    for idx,_ in enumerate(keys):
         cls_id,z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
         # n_cls_field, nb = ngals[idx], nbkg[idx]
 
-        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)) #&(gals['mag'][2,:]<magLim[idx])
+        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id) & (gals["R"]<=1.)) 
+        galaxies2, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)) 
+
         galIDX.append(galaxies)
         
-        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id)) #&(gals['mag'][2,:]<magLim[idx])
+        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
 
         mag, mag_bkg = gals['mag'][galaxies], gals['mag'][bkgGalaxies]
+        mag2 = gals['mag'][galaxies2]
+
         probz = np.array(gals['PDFz'][galaxies])
         probz_bkg = np.array(gals['PDFz'][bkgGalaxies])
 
@@ -292,22 +288,21 @@ def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001
         if not parallel:  
             t0 = time()
             ## 5 Color distributions
-            id0, pdf_0, pdf_bkg_0 = doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,1],bandwidth=bandwidth[0]) ##(g-r)
-            id1, pdf_1, pdf_bkg_1 = doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,2],bandwidth=bandwidth[0]) ##(g-i)
-            id2, pdf_2, pdf_bkg_2 = doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,2],bandwidth=bandwidth[0]) ##(r-i)
-            id3, pdf_3, pdf_bkg_3 = doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,3],bandwidth=bandwidth[0]) ##(r-z)
-            id4, pdf_4, pdf_bkg_4 = doKDEColors(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[2,3],bandwidth=bandwidth[0]) ##(i-z)            
+            kernel_0, kernel_field_0, pdf_0, pdf_bkg_0 = doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,1],bandwidth=bandwidth[0]) ##(g-r)
+            kernel_1, kernel_field_1, pdf_1, pdf_bkg_1 = doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,2],bandwidth=bandwidth[0]) ##(g-i)
+            kernel_2, kernel_field_2, pdf_2, pdf_bkg_2 = doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,2],bandwidth=bandwidth[0]) ##(r-i)
+            kernel_3, kernel_field_3, pdf_3, pdf_bkg_3 = doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,3],bandwidth=bandwidth[0]) ##(r-z)
+            kernel_4, kernel_field_4, pdf_4, pdf_bkg_4 = doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[2,3],bandwidth=bandwidth[0]) ##(i-z)            
             print('%i - Color prob. time:'%cls_id,time()-t0)
 
             c5 = np.array([pdf_0,pdf_1,pdf_2,pdf_3,pdf_4]).transpose()
             c5_bkg = np.array([pdf_bkg_0,pdf_bkg_1,pdf_bkg_2,pdf_bkg_3,pdf_bkg_4]).transpose()
             
+            k5 = np.array([kernel_0,kernel_1,kernel_2,kernel_3,kernel_4]).transpose()
+            k5_bkg = np.array([kernel_field_0,kernel_field_1,kernel_field_2,kernel_field_3,kernel_field_4]).transpose()
+            
             pdf = np.vstack([pdf,c5])
             pdf_bkg = np.vstack([pdf_bkg,c5_bkg])
-
-            idxss = [id0,id1,id2,id3,id4]
-            for i in range(5):
-                Flag[galaxies[idxss[i]],i] = True
 
             if plot:
                 lcolor = r'$ (r-i) $'
@@ -328,11 +323,11 @@ def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001
         else:
             t0 = time()
             ## 5 Color distributions
-            y0 = dask.delayed(doKDEColors)(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,1],bandwidth=bandwidth[0])##(g-r)
-            y1 = dask.delayed(doKDEColors)(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,2],bandwidth=bandwidth[0])##(g-i)
-            y2 = dask.delayed(doKDEColors)(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,2],bandwidth=bandwidth[1])##(r-i)
-            y3 = dask.delayed(doKDEColors)(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,3],bandwidth=bandwidth[1])##(r-z)
-            y4 = dask.delayed(doKDEColors)(mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[2,3],bandwidth=bandwidth[2])##(i-z)
+            y0 = dask.delayed(doKDEColors)(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,1],bandwidth=bandwidth[0])##(g-r)
+            y1 = dask.delayed(doKDEColors)(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[0,2],bandwidth=bandwidth[0])##(g-i)
+            y2 = dask.delayed(doKDEColors)(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,2],bandwidth=bandwidth[1])##(r-i)
+            y3 = dask.delayed(doKDEColors)(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[1,3],bandwidth=bandwidth[1])##(r-z)
+            y4 = dask.delayed(doKDEColors)(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[probz,probz_bkg],choose_color=[2,3],bandwidth=bandwidth[2])##(i-z)
             
             results0.append(y0)
             results1.append(y1)
@@ -350,24 +345,26 @@ def computeColorPDF(gals,cat,r200,nbkg,testPz=False,bandwidth=[0.008,0.001,0.001
         for i in range(len(galIDX)):
             galaxies = galIDX[i]
 
-            id0, pdf_0, pdf_bkg_0 = results0[i]
-            id1, pdf_1, pdf_bkg_1 = results1[i]
-            id2, pdf_2, pdf_bkg_2 = results2[i]
-            id3, pdf_3, pdf_bkg_3 = results3[i]
-            id4, pdf_4, pdf_bkg_4 = results4[i]
+            kernel_0, kernel_field_0, pdf_0 ,pdf_bkg_0 = results0[i]
+            kernel_1, kernel_field_1, pdf_1 ,pdf_bkg_1 = results1[i]
+            kernel_2, kernel_field_2, pdf_2 ,pdf_bkg_2 = results2[i]
+            kernel_3, kernel_field_3, pdf_3 ,pdf_bkg_3 = results3[i]
+            kernel_4, kernel_field_4, pdf_4 ,pdf_bkg_4 = results4[i]
 
             c5 = np.array([pdf_0,pdf_1,pdf_2,pdf_3,pdf_4]).transpose()
             c5_bkg = np.array([pdf_bkg_0,pdf_bkg_1,pdf_bkg_2,pdf_bkg_3,pdf_bkg_4]).transpose()
-            
+
+            k5 = np.array([kernel_0,kernel_1,kernel_2,kernel_3,kernel_4]).transpose()
+            k5_bkg = np.array([kernel_field_0,kernel_field_1,kernel_field_2,kernel_field_3,kernel_field_4]).transpose()
+
             pdf = np.vstack([pdf,c5])
             pdf_bkg = np.vstack([pdf_bkg,c5_bkg])
 
-            idxss = [id0,id1,id2,id3,id4]
-            for i in range(5):
-                Flag[galaxies[idxss[i]],i] = True
+            kernels.append(k5)
+            kernels_field.append(k5_bkg)
 
-        print('Parallel - Color time:'%cls_id,round(time()-t0,2))
-    return pdf[1:], pdf_bkg[1:], Flag
+        # print('Parallel - Color time:'%cls_id,round(time()-t0,2))
+    return pdf[1:], pdf_bkg[1:], kernels, kernels_field
     
 #############################################################################
 ### plot

@@ -8,7 +8,6 @@ from astropy.table import Table, vstack
 import astropy.io.fits as pyfits
 
 import glob
-import fitsio
 
 # local libraries
 import membAssignment as membAssign
@@ -22,16 +21,16 @@ from joblib import Parallel, delayed
 
 file_path_script = __file__
 
-def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/CCOPA_Config.ini"):
+def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/copa_config.ini"):
 
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)
 
 	if getAllVariables:
-		out = dict()
-		for key in configFile.items():
-			for val in key[1]:
-				out[val] = key[1][val]
+		out=dict()
+		for key in list(configFile._sections):
+			for val in configFile.items(key):
+				out[val[0]] = val[1]
 		return out
 
 	# if config item not found, raise log warning
@@ -107,7 +106,6 @@ def computePmem(g0,plim=0.01):
 	gid = np.array(g0['GID'])#.astype(np.int)
 	commonGroups = commonValues(gid)
 
-	count = 0
 	for indices in commonGroups:
 		pm_group = np.array(pmem[indices])
 		pt_group = np.array(ptaken[indices])
@@ -132,11 +130,12 @@ def computePmem(g0,plim=0.01):
 	g0['Pmem'] = pmem
 	g0['Ptaken'] = ptaken
 
-	if 'True' in g0.colnames:
-		pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
-	mask = (pmem>=plim)
+	# if 'True' in g0.colnames:
+	# 	pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
+	# mask = (pmem>=plim)
+	# g0 = g0[mask]
 
-	return g0[mask]
+	return g0
 
 def computeNgals(g,cat):
 	good_indices = np.where(cat['Nbkg']>0)
@@ -200,11 +199,11 @@ def group_table_by(table,key,idx):
 # 	g0 = Table(galaxy_cat[1].data)
 # 	return g0
 	
-# def readFiles(files):
+# def readfiles(files):
 # 	allData = []
 # 	for file_gal in files:
 # 		if path.isfile(file_gal):
-# 			g0 = readFile(file_gal)
+# 			g0 = readfile(file_gal)
 # 			allData.append(g0)
 		
 # 		else:
@@ -214,37 +213,39 @@ def group_table_by(table,key,idx):
 # 	return g
 
 def readFile(filename,columns=None):
-    '''
-    Read a filename with fitsio.read and return an astropy table
-    '''
-    hdu = fitsio.read(filename, columns=columns)
-    return Table(hdu)
+	'''
+	Read a filename with fitsio.read and return an astropy table
+	'''
+	import fitsio
+	hdu = fitsio.read(filename, columns=columns)
+	return Table(hdu)
 
 def readFiles(filenames, columns=None):
-    '''
-    Read a set of filenames with fitsio.read and return a concatenated array
-    '''
-    out = []
-    i = 1
-    print
-    for f in filenames:
-        print('File {i}: {f}'.format(i=i, f=f))
-        out.append(fitsio.read(f, columns=columns))
-        i += 1
+	'''
+	Read a set of filenames with fitsio.read and return a concatenated array
+	'''
+	import fitsio
+	out = []
+	i = 1
+	print
+	for f in filenames:
+		print('File {i}: {f}'.format(i=i, f=f))
+		out.append(fitsio.read(f, columns=columns))
+		i += 1
 
-    return Table(np.concatenate(out))
+	return Table(np.concatenate(out))
 
-# def writeFiles(member_outfile,cluster_outfile):
-# 	logging.info('Writing output')
-# 	clusterNames = sorted(glob.glob(cluster_outfile+'*'))
-# 	memberNames = sorted(glob.glob(member_outfile+'*'))
+def writeFiles(member_outfile,cluster_outfile):
+	logging.info('Writing output')
+	clusterNames = sorted(glob.glob(cluster_outfile+'*'))
+	memberNames = sorted(glob.glob(member_outfile+'*'))
 
-#     # Call function and load all data sets
-# 	# out0 = readFiles(clusterNames)
-# 	# out1 = readFiles(memberNames)
+    # Call function and load all data sets
+	# out0 = readFiles(clusterNames)
+	# out1 = readFiles(memberNames)
 
-# 	out0.write(cluster_outfile + ".fits")
-# 	out1.write(member_outfile + ".fits")
+	out0.write(cluster_outfile + ".fits")
+	out1.write(member_outfile + ".fits")
 
 def getOutFile(out):
 	gal = [toto[0] for toto in out]
@@ -255,14 +256,12 @@ def getOutFile(out):
 
 	return galAll, catAll
 
-def writeFilesParallel(galAll,catAll,getTrueMembers=False):
+def writeFilesParallel(galAll,catAll):
 	
 	memberPrefix = getConfig("Files","galaxyOutFilePrefix")
 	clusterPrefix = getConfig("Files","clusterOutFilePrefix")
 
 	fits = '.fits'
-	if getTrueMembers:
-		fits = 'true.fits'
 
 	galAll.write(memberPrefix+fits, format='fits', overwrite=True)
 	catAll.write(clusterPrefix+fits, format='fits', overwrite=True)
@@ -304,11 +303,17 @@ def writeSmallFiles(cluster_cat,galaxy_cat,nbatches):
 
 	return galaxy_list, cluster_list
 
-def triggerMembAssignment(idx,cInfile,gInfile,**kwargs):
+def triggerMembAssignment(cInfile,gInfile,pdfFile,compute_truth_table,**kwargs):
 	ci = readFile(cInfile)
 	gi = readFile(gInfile)
 
-	gal, cat = membAssign.clusterCalc(gi,ci,**kwargs)
+	kwargs["outfile_pdfs"] = pdfFile
+
+	if compute_truth_table:
+		gal, cat = membAssign.clusterCalcTruthTable(gi,ci,**kwargs)
+	
+	else:
+		gal, cat = membAssign.clusterCalc(gi,ci,**kwargs)
 
 	return gal, cat
 
@@ -330,7 +335,9 @@ def getKwargs(m_out=None,c_out=None):
 	plim = float(getConfig('Cuts', "p_low_lim"))
 	M200 = float(getConfig('Cuts', "M200"))
 
-	kwargs = {"member_outfile":m_out,"cluster_outfile":c_out,"r_in":r_in,"r_out":r_out,'M200':M200,"p_low_lim":plim,'simulation':simulation,'computeR200':computeR200}
+	outfilePDFs = getConfig("Files","pdfOutfileprefix")
+
+	kwargs = {"outfile_pdfs":outfilePDFs,"member_outfile":m_out,"cluster_outfile":c_out,"r_in":r_in,"r_out":r_out,'M200':M200,"p_low_lim":plim,'simulation':simulation,'computeR200':computeR200}
 	return kwargs
 
 def loadTable(kwargs):
@@ -391,6 +398,30 @@ def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
 	f.write(out_j)
 	f.close()
 
+def matchFiles(outfile,name_list):
+	import h5py
+	d_struct = {} #Here we will store the database structure
+	sub_group = ['pdfc','pdfc_bkg','pdfz','pdfz_bkg']
+
+	for name in name_list:
+		if os.path.isfile(name):
+			f = h5py.File(name,'r')
+			d_struct[name] = list(f.keys())
+			f.close()
+		else:
+			print('the file %s does not exists'%name)
+
+	myfile = h5py.File(outfile,'w')
+	for name in (name_list):
+		paths = d_struct[name]
+		# print(paths)
+		for path in paths:
+			myfile[path] = h5py.ExternalLink(name, path)
+			for item in sub_group:
+				path2 = os.path.join(path,item)
+				myfile[path2] = h5py.ExternalLink(name, path2)
+	myfile.close()
+
 def computeMembAssignment():
 	logging.info('Starting COPACABANA - COlor Probabilistic Assignment for Clusters and Bayesian ANAlysis')
 
@@ -401,6 +432,7 @@ def computeMembAssignment():
 	date0, date0_str = get_date_time()
 
 	parallel = isOperationSet(operation="parallel")
+	computeTruthTable = isOperationSet(operation="truthTable")
 
 	kwargs = getKwargs()
 
@@ -409,16 +441,20 @@ def computeMembAssignment():
 		nprocess = int(getConfig("Parallel", "process"))
 
 		m_list, c_list = loadTables(kwargs,parallel=True,nbatches=nbatches)
+		pdf_list = [kwargs['outfile_pdfs']+'_%04i.hdf5'%(i+1) for i in range(nbatches)]
 
 		sleep(2)
-		out = Parallel(n_jobs=nprocess)(delayed(triggerMembAssignment)(idx,c_list[idx],m_list[idx],**kwargs) for idx in range(nbatches) )
+		out = Parallel(n_jobs=nprocess)(delayed(triggerMembAssignment)(c_list[idx],m_list[idx],pdf_list[idx],computeTruthTable,**kwargs) for idx in range(nbatches) )
 		g0, cat = getOutFile(out)
 
+		matchFiles(kwargs["outfile_pdfs"] +'.hdf5',pdf_list)
+
 	else:
+		kwargs["outfile_pdfs"] += '.hdf5'
 		galaxies, clusters = loadTables(kwargs,parallel=False)
 		g0, cat = membAssign.clusterCalc(galaxies,clusters,**kwargs)
 
-	## update Pmem and compute Ptaken
+	## update Pmem, compute Ptaken and make a Pmem cut
 	galOut = computePmem(g0,plim=kwargs['p_low_lim'])
 
 	### update Ngals

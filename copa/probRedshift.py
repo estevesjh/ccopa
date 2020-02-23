@@ -58,13 +58,10 @@ def monteCarloSubtraction(p_field):
 
     return idx_subtracted
 
-def redshiftDistribuitionSubtraction(z,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
+def redshiftDistribuitionSubtraction(z,z_gal,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
     ## compute kde
-    # kernel = kde.gaussian_kde(z,bw_method=bw/ z.std(ddof=1),weights=prior[0])
-    # kernel_bkg = kde.gaussian_kde(z_bkg,bw_method=bw/z_bkg.std(ddof=1),weights=prior[1])
-
-    kernel = kde.gaussian_kde(z,bw_method='silverman',weights=prior[0])
-    kernel_bkg = kde.gaussian_kde(z_bkg,bw_method='silverman',weights=prior[1])
+    kernel = kde.gaussian_kde(z_gal,bw_method=bw,weights=prior[0])
+    kernel_bkg = kde.gaussian_kde(z_bkg,bw_method=bw,weights=prior[1])
 
     pdf = kernel(z)
     pdf_bkg = kernel_bkg(z)
@@ -76,7 +73,7 @@ def redshiftDistribuitionSubtraction(z,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
     Nf = pdf_bkg*nb
     Ncf = pdf*ncf
 
-    Pfield = Nf/Ncf
+    Pfield = Nf/(Ncf+1e-6)
 
     # print('Pfiled>1: ',np.count_nonzero(Pfield>1)/len(z),'%')
     Pfield = np.where(Pfield>1,1.,Pfield)
@@ -87,68 +84,82 @@ def redshiftDistribuitionSubtraction(z,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
     pdfz = Nc/nc
     pdfz = np.where(pdfz<0.01,0.,pdfz)
     
-    ## subtract field galaxies
-    idx = monteCarloSubtraction(Pfield)
+    return  pdfz, pdf_bkg
+
+def getPosterior(pdfc,zgal,zerr,zvec,z_cls):
+    zz, yy = np.meshgrid(zvec,zgal)
+    zz, yy_err = np.meshgrid(zvec,zerr)
     
-    return idx, pdfz, pdf_bkg
+    pdfz = gaussian(zz,yy,yy_err)
+    
+    pos = pdfc*pdfz
+    norm_factor = integrate.trapz(pos,x=zz)
 
-# def doSigmaClip(z_gal, z_bkg, nb, n_cls_field, bw=0.001, prior=[None,None]):
-#     idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bw, prior=prior)
+    pdf = pos/norm_factor[:,np.newaxis] ## set pdf to unity
+    pdf[np.isnan(pdf)] = 0.
+    
+    w = np.argmin(np.abs(zvec-z_cls)) ## get pdf value at z_cls
+    pdf = pdf[:,w]
 
-#     z_upper_l = np.percentile(z_gal,75)
-#     z_lower_l = np.percentile(z_gal,15)
+    # print()
+    # print("bad 2:", 1.*np.count_nonzero(np.isnan(pdf))/(1.*len(pdf)) )
 
-#     pdf_i = np.where(z_gal>=z_upper_l,0.,pdf_i)
-#     pdf_i = np.where(z_gal<=z_lower_l,0.,pdf_i)
-
-#     return idx, pdf_i, pdf_i_bkg
-
-def computeRedshiftPDF(gals,cat,r200,nbkg,bandwidth=0.008,plot=False,testPz=False):
+    return pdf 
+    
+def computeRedshiftPDF(gals,cat,r200,nbkg,keys,bandwidth=0.008,plot=False,zvec=np.arange(0.,1.,0.005)):
     ## estimate PDFz
     pdf = np.empty(0,dtype=float)
     pdf_bkg = np.empty(0,dtype=float)
 
-    Flag = np.full(len(gals['Bkg']), False, dtype=bool)
+    pdf_cls = []
+    pdf_field = []
     
-    good_indices, = np.where(nbkg>0)
-    for idx in good_indices:
+    for idx,_ in enumerate(keys):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
         # n_cls_field, nb = ngals[idx], nbkg[idx]
 
-        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id))
+        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)& (gals["R"]<=r2) )
+        galaxies2, = np.where((gals['Gal']==True)&(gals['CID']==cls_id))
         bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
 
-        z_gal = zshift(gals['z'][galaxies],z_cls)
-        z_bkg = zshift(gals['z'][bkgGalaxies],z_cls)
+        z_gal = gals['z'][galaxies]
+        z_gal2 = gals['z'][galaxies2]
+        z_bkg = gals['z'][bkgGalaxies]
+
+        zerr = gals['zerr'][galaxies2]
         
         probz = np.array(gals['PDFz'][galaxies])
         probz_bkg = np.array(gals['PDFz'][bkgGalaxies])
-
         n_cls_field = np.sum(probz)/(np.pi*r2**2)
         
+        # zvec = zshift(zvec,z_cls)
         if len(z_gal)>0:
-            idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bandwidth,prior=[probz,probz_bkg])
-            # idx, pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal, z_bkg, nb, n_cls_field, bw=bandwidth,prior=[None,None])
-            Flag[galaxies[idx]] = True
-            
-            # pdf_i = probz
-            # pdf_i_bkg = pdf_i_bkg
+            k_i, k_i_bkg = redshiftDistribuitionSubtraction(zvec, z_gal, z_bkg, nb, n_cls_field, bw='silverman',prior=[probz,probz_bkg])
+            # pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal2, z_gal, z_bkg, nb, n_cls_field, bw='silverman',prior=[probz,probz_bkg])
+
+            pdf_i = interpData(zvec,k_i,z_gal2)#getPosterior(k_i,z_gal2,zerr,zvec,z_cls)#np.array(gals['PDFz'][galaxies2])#
+            pdf_i_bkg = interpData(zvec,k_i_bkg,z_gal2)#getPosterior(k_i_bkg,z_gal2,zerr,zvec,z_cls)#np.array(gals['PDFz'][bkgGalaxies])#
         
         else:
-            pdf_i, pdf_i_bkg = np.ones_like(z_gal),np.ones_like(z_gal)
-            
+            k_i = k_i_bkg = np.ones_like(zvec)
+            pdf_i = pdf_i_bkg = np.ones_like(z_gal)
+        
         if plot:
-            svname = './controlPlots/redshift/Cluster_%i'%cls_id
-            kernel = kde.gaussian_kde(z_gal,bw_method='silverman',weights=probz)
-            pdf_i_all = kernel(z_gal)
+            print('Plotting ')
+            svname = './img/redshift_%i.png'%cls_id
+            kernel = kde.gaussian_kde( z_gal ,bw_method='silverman')
+            pdf_i_all = kernel(zvec)
 
-            plotTrioRedshift(z_gal, pdf_i_all, pdf_i_bkg, pdf_i, z_cls, nb, n_cls_field,name_cls=svname)
-            
+            plotTrioRedshift(zvec, pdf_i_all, k_i_bkg, k_i, z_cls, nb, n_cls_field,name_cls=svname)
+
         pdf = np.append(pdf,pdf_i)
         pdf_bkg = np.append(pdf_bkg,pdf_i_bkg)
+
+        pdf_cls.append(k_i)
+        pdf_field.append(k_i_bkg)
         
-    return pdf, pdf_bkg, Flag  
+    return pdf, pdf_bkg, pdf_cls, pdf_field
 
 ########################################################
 def plotTrioRedshift(z,pdf_all,pdf_bkg,pdf,z_cls,nbkg,ncls_field,name_cls='Cluster'):

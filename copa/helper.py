@@ -6,6 +6,7 @@ from astropy.io.fits import getdata
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 from astropy.stats import median_absolute_deviation
+import astropy.io.fits as pyfits
 
 from scipy.interpolate import interp1d
 import scipy.integrate as integrate
@@ -13,8 +14,6 @@ import numpy as np
 import logging
 import esutil
 from time import time
-
-import fitsio
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.286)
 Mpc2cm = 3.086e+24
@@ -26,6 +25,8 @@ def readfile(filename,columns=None):
     '''
     Read a filename with fitsio.read and return an astropy table
     '''
+    import fitsio
+
     hdu = fitsio.read(filename, columns=columns)
     return Table(hdu)
 
@@ -33,6 +34,8 @@ def loadfiles(filenames, columns=None):
     '''
     Read a set of filenames with fitsio.read and return a concatenated array
     '''
+    import fitsio
+
     out = []
     i = 1
     print
@@ -42,6 +45,26 @@ def loadfiles(filenames, columns=None):
         i += 1
 
     return Table(np.concatenate(out))
+
+def readFile(file_gal,columns=None):
+    galaxy_cat = pyfits.open(file_gal)
+    g0 = Table(galaxy_cat[1].data)
+    if columns is not None:
+        g0 = g0[columns]
+    return g0
+
+def loadfiles(files,columns=None):
+	allData = []
+	for file_gal in files:
+		if path.isfile(file_gal):
+			g0 = readfile(file_gal,columns=columns)
+			allData.append(g0)
+		
+		else:
+			print('file not found %s'%(file_gal))
+	
+	g = vstack(allData)
+	return g
 
 def convertRA(ra):
     ra = np.where(ra>180,ra-360,ra)
@@ -76,14 +99,14 @@ def fastGaussianIntegration(membz,membzerr,zmin,zmax):
     prob=np.sum(arflip,axis=1)
     return prob
 
-def PhotozProbabilities(zmin,zmax,membz,membzerr,fast=True):
+def PhotozProbabilities(zmin,zmax,membz,membzerr,fast=False,zcls=0.1):
     if fast:
         out = fastGaussianIntegration(membz,membzerr,zmin,zmax)
-    
     else:
         out = []
         for i in range(len(membz)):
             aux, err = integrate.fixed_quad(gaussian,zmin,zmax,args=(membz[i],membzerr[i]))
+            
             out.append(aux)
         out = np.array(out)
     return out
@@ -94,14 +117,38 @@ def getPDFz(membz,membzerr,zi):
         Assumes that the galaxy has a gaussian redshift PDF.
     '''
     sigma = np.median(membzerr)
-    ni = look_up_table_photozWindow(sigma)
+
+    delta_z = 0.0025
+    zz = np.arange(0.,1.2,delta_z)
+    pdfc = gaussian(zz,zi,sigma)
+    
+    out = []
+    zmin, zmax = (zi-3*sigma), (zi+3*sigma)
+    
+    if zmin<0: zmin=0
+
+    for zi, zerri in (membz,membzerr):
+        pz = gaussian(zz,zi,zerri)
+
+        pos_i = pdfc*pz ## multiplying the PDF by the prior
+        pos = pos_i/np.trapz(pos_i,dx=pos_i[1:])#[:,w] ## nomarlizing pdf to unity
+        aux, err = integrate.fixed_quad(pos,zmin,zmax,args=(zi,zerri))
+        out.append(aux)
+    pdf = np.array(out)
+
+    # pdfcg= np.min([pdfc,pdfg],axis=0)
+    # aux = np.trapz(pdfcg,dx=delta_z)
+
+    # ni = look_up_table_photozWindow(sigma)
     # ni = 1
     
     # zmin, zmax = (zi-ni*0.01*(1+zi)), (zi+ni*0.01*(1+zi))
     # pdf = PhotozProbabilities(zmin,zmax,membz,sigma*np.ones_like(membz))
-    # pdf = PhotozProbabilities(zmin,zmax,membz,membzerr)
-    pdf = gaussian(zi,membz,membzerr)
-    # pdf = np.where(pdf<0.001,0.,pdf/np.max(pdf))
+    # pdf = PhotozProbabilities(zmin,zmax,membz,membzerr,zcls=zi)
+    
+    ## old way
+    # pdf = gaussian(zi,membz,membzerr)
+
     return pdf
 
 def getPDFzM(z,zerr,cid,cat):
@@ -182,7 +229,8 @@ def cutGalaxyCatalog(ra,dec,z,zerr,clusters,rmax=3,r_in=6,r_out=8,length=12,wind
         idxSubGal = idxSubGal[idx]
 
         clusterIDX = cls_id*np.ones_like(idxSubGal)
-        pdf = getPDFz(z[idxSubGal],zerr[idxSubGal],cls_z,window=window)
+        pdf = np.zeros_like(z[idxSubGal])
+        #pdf = getPDFz(z[idxSubGal],zerr[idxSubGal],cls_z)
         
         idxSubGalsCat = np.append(idxSubGalsCat,idxSubGal)
         radii = np.append(radii,r[idx])
@@ -193,6 +241,7 @@ def cutGalaxyCatalog(ra,dec,z,zerr,clusters,rmax=3,r_in=6,r_out=8,length=12,wind
 
 
 def aperture_match(ra_cluster,dec_cluster,ang_diam_dist,ra_galaxy,dec_galaxy,r_aper=10):
+    import esutil 
     depth=10
     h=esutil.htm.HTM(depth)
     #Inner match
@@ -339,7 +388,7 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
         colNames.append('R200')
         colNames.append('M200')
 
-    data = readfile(catInFile,columns=colNames)
+    data = readFile(catInFile)
 
     if idx is not None:
         data=data[idx] # JCB: to divide and conquer
@@ -381,8 +430,8 @@ def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window
     print('Uploading data table')
     t0 = time()
 
-    # data = Table(getdata(galaxyInFile))    
-    data = readfile(galaxyInFile,columns=colNames)
+    data = Table(getdata(galaxyInFile))    
+    # data = readfile(galaxyInFile,columns=colNames)
     
     tu = time()-t0
     print('time:',tu)
@@ -409,9 +458,9 @@ def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window
 
     print('Cut data table')
     t0 = time()
-    # cid = data['HALOID']
+    cid = data['HALOID']
     # idx, cid, radii, pdfz = cutGalaxyCatalog(ra[indices],dec[indices],z[indices],zerr[indices],clusters,rmax=rmax,r_in=r_in,r_out=r_out,
-                            # length=radius,window=window)
+    #                         length=radius,window=window)
     idx, cidx, radii = cutCircle(ra[indices],dec[indices],clusters,rmax=radius)
 
     print('returning galaxy cut')
