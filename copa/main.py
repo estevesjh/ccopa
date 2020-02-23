@@ -130,10 +130,10 @@ def computePmem(g0,plim=0.01):
 	g0['Pmem'] = pmem
 	g0['Ptaken'] = ptaken
 
-	# if 'True' in g0.colnames:
-	# 	pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
-	# mask = (pmem>=plim)
-	# g0 = g0[mask]
+	if 'True' in g0.colnames:
+		pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
+	mask = (pmem>=plim)
+	g0 = g0[mask]
 
 	return g0
 
