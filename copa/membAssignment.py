@@ -35,14 +35,14 @@ class outPDF:
         for name in self.name_list:
             self.f.create_group(name)
 
+    def pdf_write(self,var1,var2,label='z'):
+        for i,name in enumerate(self.name_list):
+            self.pdfs_create(name,var1,var2[i],label=label)
+
     def pdfs_write(self,var1,var2,var3,var4,label='z',label2='c'):
         for i,name in enumerate(self.name_list):
             self.pdfs_create(name,var1,var2[i],label=label)
             self.pdfs_create(name,var3,var4[i],label=label2)
-
-    def pdf_write(self,var1,var2,label='z'):
-        for i,name in enumerate(self.name_list):
-            self.pdfs_create(name,var1,var2[i],label=label)
 
     def pdfs_create(self,name,var1,var2,label='z'):
         self.f.create_dataset('/%s/pdf_%s'%(name,label), data = np.column_stack([var1,var2]), compression="gzip" )
@@ -528,7 +528,7 @@ def clusterCalcTruthTable(gal, cat, outfile_pdfs=None, member_outfile=None, clus
     galCut['redshift'][gidx] = cat['redshift'][cidx]
 
     Colnames=['CID', 'redshift', 'GID', 'RA', 'DEC', 'R', 'z', 'zerr', 'mag', 'magerr',
-              'Pr', 'Pz', 'Pc', 'Pmem','FLAG_C','FLAG_Z','pdfs','pdfs_bkg']
+              'Pr', 'Pz', 'Pc', 'Pmem','pdfs','pdfs_bkg']
 
     if simulation:
         Colnames.append('z_true')
