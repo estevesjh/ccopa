@@ -51,6 +51,7 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
     nbkg0 = np.mean(lista[lista>0.5])
     mad = np.std(lista[lista>0.5])
 
+    # print(lista)
     nl, nh = nbkg0-2*n_high*mad,nbkg0+n_high*mad
     sectors0, = np.where((lista>nl)&(lista<nh))
     lista2 = lista[sectors0]
@@ -75,7 +76,8 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
     #         w, = np.where( (theta <= (ni+1)*(360/nslices)) & (theta >= (ni)*(360/nslices)) & bkgMask )
     #         idx_gal = np.append(idx_gal,w)
     
-    Nbkg = (nbkg*nslices) ## mean number of galaxies in the region
+    # Nbkg = (nbkg*nslices) ## mean number of galaxies in the region
+    Nbkg = np.sum(pz_bkg)
 
     return Nbkg, idx_gal
 
@@ -89,15 +91,16 @@ def getDensityBkg(all_gal,theta,r_aper,r_in=6,r_out=8,nslices=72,method='pdf'):
     area = (np.pi*r_aper**2)
 
     nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices,n_high=2.,method=method)
-    ngal, _ = calcNbkg(pz,theta,galMask,nslices=nslices,n_high=2.,method=method)
+    ngal, _ = calcNbkg(pz,theta,galMask,nslices=nslices,n_high=5.,method=method)
 
     nbkg, ngal = (nbkg/area_bkg), (ngal/area)
 
     ## check if the nbkg is greater than the galaxy cluster density core!
-    if nbkg>ngal:
-        print('Error: nbkg > ngal')
-        nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices+10,n_high=1.5)
-    
+    if (nbkg>ngal) | (nbkg>100):
+        print('Error: nbkg > ngal or nbkg>100 gals/Mpc2')
+        nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices+24,n_high=3.)
+        nbkg = (nbkg/area_bkg)
+
     if np.count_nonzero(galMask) < 10: ## at least 10 galaxies
         nbkg = -1
 
@@ -131,10 +134,12 @@ def computeDensityBkg(gals,cat,r_in=6,r_out=8,r_aper=1.,nslices=72,method='pdf')
     for idx in range(ncls):
         cls_id = cat['CID'][idx]
         ra_c, dec_c = cat['RA'][idx], cat['DEC'][idx]
-        magLim_i = cat['magLim'][idx,1] ### mi cut
+        # magLim_r = cat['magLim'][idx,0] ### mr cut
         
         galIndices, = np.where(gals['CID']==cls_id)
-        galIndicesL, = np.where((gals['CID']==cls_id)&(gals['mag'][:,2]<magLim_i))
+        galIndicesL, = np.where((gals['CID']==cls_id)&(gals['dmag']<=0.))
+        # galIndicesL, = np.where((gals['CID']==cls_id)&(gals['mag'][:,1]<magLim_r))
+        # galIndicesL, = np.where((gals['CID']==cls_id)&(gals['amag'][:,1]<=-20.5))
        
         gal = gals[galIndices]
         gal_magLim = gals[galIndicesL]
@@ -163,15 +168,17 @@ def computeDensityBkg(gals,cat,r_in=6,r_out=8,r_aper=1.,nslices=72,method='pdf')
 
 def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
     galsFlag = np.full(len(gals['Bkg']), False, dtype=bool)
-    ngals, keys = [],[]
+    ngals, keys, galIndices = [],[], []
     
     count0 = 0
     for idx in range(len(cat)):
         cls_id = cat['CID'][idx]
         ra_c, dec_c = cat['RA'][idx], cat['DEC'][idx]
-        magLim_i = cat['magLim'][idx,1] ### mi cut
+        # magLim_i = cat['magLim'][idx,1] ### mi cut
+        
+        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=rmax[idx])&(gals['dmag']<=0.))
         # indices, = np.where((gals['CID']==cls_id)&(gals['R']<=rmax[idx])&(gals['mag'][:,2]<magLim_i))
-        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=4)&(gals['mag'][:,2]<magLim_i))
+        # indices, = np.where((gals['CID']==cls_id)&(gals['R']<=4)&(gals['mag'][:,2]<magLim_i))
         
         pz = gals['PDFz'][indices]
         theta = calcTheta(gals['RA'][indices],gals['DEC'][indices],ra_c,dec_c)
@@ -179,18 +186,17 @@ def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
 
         if len(indices)>0:
             galMask = np.full(len(pz), True, dtype=bool)
-            galsFlag[indices] = True
-
             new_idx = np.arange(count0,count0+len(indices),1,dtype=int)
             ng, _ = calcNbkg(pz,theta,galMask, nslices=nslices,n_high=2.)
             # ng = np.sum(pz)
 
             keys.append(new_idx)
             ngals.append(ng/area)
+            galIndices.append(indices)
 
             count0 += len(indices)
-
-    return np.array(ngals), galsFlag, keys
+    
+    return np.array(ngals), galsFlag, keys, galIndices
 
 
 if __name__ == '__main__':

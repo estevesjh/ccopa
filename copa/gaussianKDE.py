@@ -27,7 +27,10 @@ class gaussian_kde(object):
         # http://surveyanalysis.org/wiki/Design_Effects_and_Effective_Sample_Size#Kish.27s_approximate_formula_for_computing_effective_sample_size
         self.neff = 1.0 / np.sum(self.weights ** 2)
 
-        self.set_bandwidth(bw_method=bw_method, silvermanFraction=silvermanFraction)
+        if silvermanFraction is not None:
+            bw_method = self.silverman_factor()/silvermanFraction
+
+        self.set_bandwidth(bw_method=bw_method)
 
     def evaluate(self, points):
         """Evaluate the estimated pdf on a set of points.
@@ -64,13 +67,11 @@ class gaussian_kde(object):
     #  Default method to calculate bandwidth, can be overwritten by subclass
     covariance_factor = scotts_factor
 
-    def set_bandwidth(self, bw_method=None,silvermanFraction=None):
+    def set_bandwidth(self, bw_method=None):
         """Compute the estimator bandwidth with given method.
         """
         if bw_method is None:
             pass
-        elif silvermanFraction is not None:
-            self.covariance_factor = self.silverman_factor/silvermanFraction
         elif bw_method == 'scott':
             self.covariance_factor = self.scotts_factor
         elif bw_method == 'silverman':

@@ -93,7 +93,15 @@ def commonValues(values):
 	
 	return commonValuesIndicies
 
-def computePmem(g0,plim=0.01):
+def getPmemCut(g0,plim):
+	if 'True' in g0.colnames:
+		pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
+	mask = (pmem>=plim)
+	g0 = g0[mask]
+
+	return g0
+
+def computePmem(g0):
 	"""
 	it computes p_taken
 	"""
@@ -130,19 +138,23 @@ def computePmem(g0,plim=0.01):
 	g0['Pmem'] = pmem
 	g0['Ptaken'] = ptaken
 
-	if 'True' in g0.colnames:
-		pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
-	mask = (pmem>=plim)
-	g0 = g0[mask]
-
 	return g0
 
 def computeNgals(g,cat):
 	good_indices = np.where(cat['Nbkg']>0)
-	Ngals = membAssign.computeNgals(g,cat['CID'][good_indices],true_gals=False,col='Pmem')
+	Ngals = membAssign.computeNgals(g,cat['CID'][good_indices],cat['R200'][good_indices],true_gals=False,col='Pmem')
 	cat['Ngals'] = -1.
 	cat['Ngals'][good_indices] = Ngals
 	return cat
+
+def computeFinalPmem(g,cat):
+	area = np.pi*cat['R200']**2
+	norm = cat['Ngals']/cat['Nbkg']/area
+	norm[np.isnan(norm)] = 0.
+
+	galIndices = list(membAssign.chunks(g['CID'],cat['CID']))
+	g = membAssign.computeProb(g, galIndices, norm)
+	return g
 
 def getClusterColsName(massProxy=False):
 	section = 'ClsColumns'
@@ -256,11 +268,7 @@ def getOutFile(out):
 
 	return galAll, catAll
 
-def writeFilesParallel(galAll,catAll):
-	
-	memberPrefix = getConfig("Files","galaxyOutFilePrefix")
-	clusterPrefix = getConfig("Files","clusterOutFilePrefix")
-
+def writeFilesParallel(galAll,catAll,memberPrefix,clusterPrefix):
 	fits = '.fits'
 
 	galAll.write(memberPrefix+fits, format='fits', overwrite=True)
@@ -310,6 +318,7 @@ def triggerMembAssignment(cInfile,gInfile,pdfFile,compute_truth_table,**kwargs):
 	kwargs["outfile_pdfs"] = pdfFile
 
 	if compute_truth_table:
+		#gi = gi[gi['True']==True]
 		gal, cat = membAssign.clusterCalcTruthTable(gi,ci,**kwargs)
 	
 	else:
@@ -335,9 +344,11 @@ def getKwargs(m_out=None,c_out=None):
 	plim = float(getConfig('Cuts', "p_low_lim"))
 	M200 = float(getConfig('Cuts', "M200"))
 
+	window = round(float(getConfig('Cuts', "redshiftWindow")),2) ## just valid for simulations
+
 	outfilePDFs = getConfig("Files","pdfOutfileprefix")
 
-	kwargs = {"outfile_pdfs":outfilePDFs,"member_outfile":m_out,"cluster_outfile":c_out,"r_in":r_in,"r_out":r_out,'M200':M200,"p_low_lim":plim,'simulation':simulation,'computeR200':computeR200}
+	kwargs = {"outfile_pdfs":outfilePDFs,"member_outfile":m_out,"cluster_outfile":c_out,"r_in":r_in,"r_out":r_out,'sigma_z':window,'M200':M200,"p_low_lim":plim,'simulation':simulation,'computeR200':computeR200}
 	return kwargs
 
 def loadTable(kwargs):
@@ -401,8 +412,31 @@ def save_run_info(totalTime, date, run_info_file = 'run_info.out'):
 def matchFiles(outfile,name_list):
 	import h5py
 	d_struct = {} #Here we will store the database structure
-	sub_group = ['pdfc','pdfc_bkg','pdfz','pdfz_bkg']
+	# groups = ['pdfc','pdfc_bkg','pdfz','pdfz_bkg']
+	# if os.path.isfile(name_list[0]):
+	# 	f0 = h5py.File(name_list[0],'r')
+	# 	groups = list(f0.keys())
+	# 	f0.close()
+	
+	# 
+	# for name in name_list:
+	# 	if os.path.isfile(name):
+	# 		f = h5py.File(name,'r')
+	# 		d_struct[name] = list(f[groups[0]].keys()) ## geting cluster ids
+	# 		f.close()
+	# 	else:
+	# 		print('the file %s does not exists'%name)
 
+	# myfile = h5py.File(outfile,'w')
+	# for name in (name_list):
+	# 	paths = d_struct[name]
+	# 	for group in groups:
+	# 		for path in paths:
+	# 			path = os.path.join(group,path)
+	# 			myfile[path] = h5py.ExternalLink(name, path)
+	# myfile.close()
+
+	d_struct = {} #Here we will store the database structure
 	for name in name_list:
 		if os.path.isfile(name):
 			f = h5py.File(name,'r')
@@ -410,17 +444,17 @@ def matchFiles(outfile,name_list):
 			f.close()
 		else:
 			print('the file %s does not exists'%name)
-
+	
 	myfile = h5py.File(outfile,'w')
 	for name in (name_list):
 		paths = d_struct[name]
-		# print(paths)
 		for path in paths:
 			myfile[path] = h5py.ExternalLink(name, path)
-			for item in sub_group:
-				path2 = os.path.join(path,item)
-				myfile[path2] = h5py.ExternalLink(name, path2)
 	myfile.close()
+
+	# ### removing temporary files
+	# for name in name_list:
+	# 	if os.path.isfile(name): os.remove(name)
 
 def computeMembAssignment():
 	logging.info('Starting COPACABANA - COlor Probabilistic Assignment for Clusters and Bayesian ANAlysis')
@@ -433,6 +467,9 @@ def computeMembAssignment():
 
 	parallel = isOperationSet(operation="parallel")
 	computeTruthTable = isOperationSet(operation="truthTable")
+
+	memberPrefix = getConfig("Files","galaxyOutFilePrefix")
+	clusterPrefix = getConfig("Files","clusterOutFilePrefix")
 
 	kwargs = getKwargs()
 
@@ -447,7 +484,8 @@ def computeMembAssignment():
 		out = Parallel(n_jobs=nprocess)(delayed(triggerMembAssignment)(c_list[idx],m_list[idx],pdf_list[idx],computeTruthTable,**kwargs) for idx in range(nbatches) )
 		g0, cat = getOutFile(out)
 
-		matchFiles(kwargs["outfile_pdfs"] +'.hdf5',pdf_list)
+		if not computeTruthTable:
+			matchFiles(kwargs["outfile_pdfs"] +'.hdf5',pdf_list)
 
 	else:
 		kwargs["outfile_pdfs"] += '.hdf5'
@@ -455,13 +493,15 @@ def computeMembAssignment():
 		g0, cat = membAssign.clusterCalc(galaxies,clusters,**kwargs)
 
 	## update Pmem, compute Ptaken and make a Pmem cut
-	galOut = computePmem(g0,plim=kwargs['p_low_lim'])
+	galOut = computePmem(g0)
 
 	### update Ngals
 	catOut = computeNgals(galOut,cat)
 
+	# # galOut = getPmemCut(galOut,kwargs['p_low_lim'])
+
 	### saving output
-	writeFilesParallel(galOut,catOut)
+	writeFilesParallel(galOut,catOut,memberPrefix,clusterPrefix)
 
 	# save total computing time
 	totalTime = time() - total_t0
@@ -477,3 +517,18 @@ def computeMembAssignment():
 
 if __name__ == "__main__":
 	computeMembAssignment()
+
+
+	# n_iter = 1
+	# while n_iter<=1:
+	# 	## update Pmem, compute Ptaken and make a Pmem cut
+	# 	galOut = computePmem(g0)
+
+	# 	### update Ngals
+	# 	catOut = computeNgals(galOut,cat)
+
+	# 	# update pmem with (Ngals)
+	# 	# galOut = computeFinalPmem(galOut,cat)
+
+	# 	# g0 = galOut
+	# 	# n_iter += 1

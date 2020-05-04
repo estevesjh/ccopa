@@ -15,7 +15,10 @@ import logging
 import esutil
 from time import time
 
-cosmo = FlatLambdaCDM(H0=70, Om0=0.286)
+import membAssignment as memb
+
+h=0.7
+cosmo = FlatLambdaCDM(H0=100*h, Om0=0.286)
 Mpc2cm = 3.086e+24
 
 ## -------------------------------
@@ -53,18 +56,20 @@ def readFile(file_gal,columns=None):
         g0 = g0[columns]
     return g0
 
-def loadfiles(files,columns=None):
-	allData = []
-	for file_gal in files:
-		if path.isfile(file_gal):
-			g0 = readfile(file_gal,columns=columns)
-			allData.append(g0)
-		
-		else:
-			print('file not found %s'%(file_gal))
-	
-	g = vstack(allData)
-	return g
+def loadFiles(files,columns=None):
+    import os.path as path
+    allData = []
+
+    for file_gal in files:
+        if path.isfile(file_gal):
+            g0 = readfile(file_gal,columns=columns)
+            allData.append(g0)
+        
+        else:
+            print('file not found %s'%(file_gal))
+
+    g = vstack(allData)
+    return g
 
 def convertRA(ra):
     ra = np.where(ra>180,ra-360,ra)
@@ -307,8 +312,8 @@ def getMagLimModel(auxfile,zvec,dm=2):
     z=[i[0] for i in bcgs]  ## redshift
     mag_g=[i[1] for i in bcgs] ## g-band
     mag_r=[i[2] for  i in bcgs]## r-band
-    mag_i=[i[3] for i in bcgs] ## 
-    mag_z=[i[4] for i in bcgs] ## 
+    mag_i=[i[3] for i in bcgs] ## i-band
+    mag_z=[i[4] for i in bcgs] ## z-band
     
     interp_g=interp1d(z,mag_g,fill_value='extrapolate')
     interp_r=interp1d(z,mag_r,fill_value='extrapolate')
@@ -321,7 +326,7 @@ def getMagLimModel(auxfile,zvec,dm=2):
     
     return magLim.transpose()
 
-def getMagLimModelHuanLi(auxfile,zvec,dm=0):
+def getMagLimModel_04L(auxfile,zvec,dm=0):
     '''
     Get the magnitude limit for 0.4L*
     
@@ -331,8 +336,6 @@ def getMagLimModelHuanLi(auxfile,zvec,dm=0):
     input: Galaxy clusters redshift
     return: mag. limit for each galaxy cluster and for the r,i,z bands
     output = [maglim_r(array),maglim_i(array),maglim_z(array)]
-
-    mi = mi-7 ## a correction to take the maglim as the BCG
     '''
     annis=np.loadtxt(auxfile)
     jimz=[i[0] for i in annis]  ## redshift
@@ -348,7 +351,8 @@ def getMagLimModelHuanLi(auxfile,zvec,dm=0):
 
     mag_i,color_ri,color_iz = interp_magi(zvec),interp_ri(zvec),interp_iz(zvec)
     mag_r, mag_z = (color_ri+mag_i),(mag_i-color_iz)
-    maglim_r, maglim_i, maglim_z = (mag_r-7+dm),(mag_i-7+dm),(mag_z-7+dm)
+
+    maglim_r, maglim_i, maglim_z = (mag_r+dm),(mag_i+dm),(mag_z+dm)
 
     magLim = np.array([maglim_r, maglim_i, maglim_z])
     
@@ -364,18 +368,18 @@ def getMagLimModelHuanLi(auxfile,zvec,dm=0):
 
 #     return w
 
-def doSomeCuts(zg1, mag, amag, flags_gold, crazy=[-1,4], zrange=[0.01,1.],magMin=-19.5):
+def do_color_redshift_cut(zg1, mag, crazy=[-1,4.], zrange=[0.01,1.]):
     # gcut, rcut, icut, zcut = 24.33, 24.08, 23.44, 22.69 ## Y1 SNR_10 mag cut
-    gcut, rcut, icut, zcut = 28, 28, 28, 28 ## crazy mag!
 
     gr = mag[:,0]-mag[:,1]
+    gi = mag[:,0]-mag[:,2]
     ri = mag[:,1]-mag[:,2]
+    rz = mag[:,1]-mag[:,3]
     iz = mag[:,2]-mag[:,3]
 
     w, = np.where( (zg1>zrange[0]) & (zg1<zrange[1]) & 
-                   (gr>crazy[0]) & (gr<crazy[1]) & (ri>crazy[0]) & (ri<crazy[1]) & (iz>crazy[0]) & (iz<crazy[1]) &
-                   (mag[:,2] < icut + 5) & (amag <= magMin) ) #
-
+                   (gr>crazy[0]) & (gr<crazy[1]) & (ri>crazy[0]) & (ri<crazy[1]) & (iz>crazy[0]) & (iz<crazy[1]) )
+                   #& (gi>crazy[0]) & (gi<crazy[1]) & (rz>crazy[0]) & (rz<crazy[1])) #& (amag <= magMin) ) #
     return w
 
 ## -------------------------------
@@ -393,6 +397,10 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
     if idx is not None:
         data=data[idx] # JCB: to divide and conquer
 
+    ## excluding objects in the edge
+    if 'area_frac' in data.colnames:
+        data = data[data['area_frac']==1]
+
     id = np.array(data[colNames[0]],dtype=int)
     id, indices = np.unique(id, return_index=True)
 
@@ -407,9 +415,16 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
     DA = AngularDistance(z)
 
     print('Geting magnitude limite model')
-    auxfile = './auxTable/buzzard_BCG_mag_model.txt'
-    mag_model_riz = getMagLimModel(auxfile,z,dm=3)
+    # auxfile = './auxTable/buzzard_BCG_mag_model.txt'
+    # mag_model_riz = getMagLimModel(auxfile,z,dm=3)
     
+    # auxfile = './auxTable/buzzard_Mr_20p5_model.txt'
+    auxfile = './auxTable/buzzard_Mr_19p5_model.txt'
+    mag_model_riz = getMagLimModel(auxfile,z,dm=0)
+
+    # auxfile = './auxTable/annis_mags_04_Lcut.txt'
+    # mag_model_riz = getMagLimModel_04L(auxfile,z,dm=0)
+
     if massProxy:
         mp = data[colNames[4]][indices]
         clusterOut = Table([id, ra, dec, z, DA, mp, mag_model_riz], names=('CID', 'RA', 'DEC', 'redshift', 'DA','massProxy', 'magLim'))
@@ -421,77 +436,76 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
 
     else:
         clusterOut = Table([id, ra, dec, z, DA, mag_model_riz], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim'))
-
     logging.debug('Returning from helper.readClusterCat()')
 
     return clusterOut
 
-def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window=0.1,rmax=3,r_in=6,r_out=8):
-    print('Uploading data table')
-    t0 = time()
+# def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window=0.1,rmax=3,r_in=6,r_out=8):
+#     print('Uploading data table')
+#     t0 = time()
 
-    data = Table(getdata(galaxyInFile))    
-    # data = readfile(galaxyInFile,columns=colNames)
+#     data = Table(getdata(galaxyInFile))    
+#     # data = readfile(galaxyInFile,columns=colNames)
     
-    tu = time()-t0
-    print('time:',tu)
-    print('\n')
+#     tu = time()-t0
+#     print('time:',tu)
+#     print('\n')
 
-    ra = convertRA(np.array(data[colNames[1]]))
-    dec = np.array(data[colNames[2]])
-    z = data[colNames[3]]
-    zerr = np.abs(data[colNames[9]])
-    flag = data[colNames[8]]
+#     ra = convertRA(np.array(data[colNames[1]]))
+#     dec = np.array(data[colNames[2]])
+#     z = data[colNames[3]]
+#     zerr = np.abs(data[colNames[9]])
+#     flag = data[colNames[8]]
     
-    mag = []
-    for i in range(4):
-        mag.append(data[colNames[4+i]])
+#     mag = []
+#     for i in range(4):
+#         mag.append(data[colNames[4+i]])
     
-    mag = np.array(mag).transpose() ## 4 vector
+#     mag = np.array(mag).transpose() ## 4 vector
 
-    amag = -30.*np.ones_like(z)
-    # multi = data['MULT_NITER_MODEL'][:]
+#     amag = -30.*np.ones_like(z)
+#     # multi = data['MULT_NITER_MODEL'][:]
 
-    ## do cuts on the galaxy catalog
-    # indices = doSomeCuts(z,mag,flag,amag,multi,zrange=zrange,magMin=-19.5) ## old cuts
-    indices = doSomeCuts(z,mag,amag,flag,zrange=zrange)
+#     ## do cuts on the galaxy catalog
+#     # indices = doSomeCuts(z,mag,flag,amag,multi,zrange=zrange,magMin=-19.5) ## old cuts
+#     indices = doSomeCuts(z,mag,zrange=zrange)
 
-    print('Cut data table')
-    t0 = time()
-    cid = data['HALOID']
-    # idx, cid, radii, pdfz = cutGalaxyCatalog(ra[indices],dec[indices],z[indices],zerr[indices],clusters,rmax=rmax,r_in=r_in,r_out=r_out,
-    #                         length=radius,window=window)
-    idx, cidx, radii = cutCircle(ra[indices],dec[indices],clusters,rmax=radius)
+#     print('Cut data table')
+#     t0 = time()
+#     # cid = data['HALOID']
+#     # idx, cid, radii, pdfz = cutGalaxyCatalog(ra[indices],dec[indices],z[indices],zerr[indices],clusters,rmax=rmax,r_in=r_in,r_out=r_out,
+#     #                         length=radius,window=window)
+#     idx, cidx, radii = cutCircle(ra[indices],dec[indices],clusters,rmax=radius)
 
-    print('returning galaxy cut')
-    tc = time()-t0
-    print('time:',tc)
-    print('\n')
+#     print('returning galaxy cut')
+#     tc = time()-t0
+#     print('time:',tc)
+#     print('\n')
 
-    new_idx = indices[idx]
-    galaxyData = data[new_idx]
+#     new_idx = indices[idx]
+#     galaxyData = data[new_idx]
 
-    if len(galaxyData)<1:
-        print('Critical Error')
-        exit()
+#     if len(galaxyData)<1:
+#         print('Critical Error')
+#         exit()
 
-    cid = clusters['CID'][cidx]
-    z,zerr = z[new_idx], zerr[new_idx]
-    pdfz = np.zeros_like(z,dtype=float) #getPDFzM(z,zerr,cid,clusters)
+#     cid = clusters['CID'][cidx]
+#     z,zerr = z[new_idx], zerr[new_idx]
+#     pdfz = np.zeros_like(z,dtype=float) #getPDFzM(z,zerr,cid,clusters)
 
-    return galaxyData, cid, radii, pdfz
+#     return galaxyData, cid, radii, pdfz
 
 def getVariables(galaxyData,colNames,zsigma=0.05):
-
     gid = np.array(galaxyData[colNames[0]][:])
 
     ra = convertRA(np.array(galaxyData[colNames[1]]))
     dec = np.array(galaxyData[colNames[2]])
-    
-    z = np.array(galaxyData[colNames[3]])
+
+    np.random.RandomState(seed=42)
+    z = np.array(galaxyData[colNames[3]].copy())
     zerr = zsigma*(1+z)#np.array(galaxyData[colNames[10]])
-    z = z - np.random.normal(scale=zsigma*(1+z),size=len(z))
-    z= np.where(z<0.,0.001,z)
+    z_noise = z - np.random.normal(scale=zsigma*(1+z),size=len(z))
+    z_noise = np.where(z_noise<0.,0.,z_noise)
 
     mag, magerr = [], []
     for i in range(4):
@@ -501,48 +515,101 @@ def getVariables(galaxyData,colNames,zsigma=0.05):
     mag = np.array(mag).transpose() ## 4 vector
     magerr = np.array(magerr).transpose() ## 4 vector
 
-    return gid,ra,dec,z,zerr,mag,magerr
+    ## initialize some variables
+    cid = np.zeros_like(gid)
+    radii = np.zeros_like(z)
+    pdfz = radii
+    bkgFlag = np.full(gid.shape,False)
 
-def readGalaxyCat(galaxyInFile, clusters, rmax=3,r_in=8,r_out=10, radius=12, window=0.1, zrange=(0.01,1.),Nflag=0,colNames=None,simulation=False):
+    return cid,gid,ra,dec,radii,z,z_noise,zerr,mag,magerr,pdfz,bkgFlag
+
+
+def getRadii(galaxy,clusters,h=0.7,rmax=12,r_in=4,r_out=6,simulation=True):
+    ### get a circle
+    ra,dec = galaxy['RA'],galaxy['DEC']
+
+    idx, cidx, radii = cutCircle(ra,dec,clusters,rmax=rmax)
+    cid = clusters['CID'][cidx]
+    bkgGalaxies = (radii>r_in)&(radii<r_out)
+
+    galaxyData = galaxy[idx]
+    galaxyData['CID'] = cid
+    galaxyData['R'] = radii/h
+    galaxyData['Bkg'] = bkgGalaxies
+    galaxyData['dmag'] = galaxyData['mag'][:,2]-clusters['magLim'][cidx,1] ##i-band
+
+    ## update true members
+    if simulation:
+        # galaxyData['True'] = np.where((galaxyData['HALOID']==cid)&(galaxyData['True']==True),True,False)
+        galaxyData['True'] = np.where((galaxyData['HALOID']==cid),True,False)
+        galaxyData.remove_column('HALOID')
+        
+    return galaxyData
+
+def do_galaxy_cuts(galaxy,clusters,zrange=[0.,1.3]):
+    ## do some cuts
+
+    ## get unique galaxy ids
+    ids, indices = np.unique(galaxy['GID'], return_index=True)
+    galaxy1 = galaxy[indices]
+
+    ## get out with crazy colors
+    ## get galaxies in the redshift range
+    z = galaxy1['z']
+    mag = galaxy1['mag']
+
+    indices_cut = do_color_redshift_cut(z,mag,zrange=zrange)
+    galaxy2 = galaxy1[indices_cut]
+
+    ## get an upper cut on the magnitude (i-band)
+    mag_i = galaxy2['mag'][:,2]
+    upper_cut = np.max(clusters['magLim'][:,1])+10
+    indices_mag = mag_i<=upper_cut
+
+    return galaxy2[indices_mag]
+
+def readGalaxyCat(galaxyInFile, clusters, h=0.7, rmax=3,r_in=8,r_out=10, radius=12, window=0.1, zrange=(0.01,1.),Nflag=0,colNames=None,simulation=False):
     logging.debug('Starting helper.readGalaxyCat()')
+    print('reading galaxy catalog')
     
     if colNames is None:
         print('Please provide the Galaxy column names - exiting the code')
         exit()
 
-    if simulation:
-        colNames.append('HALOID')
-        colNames.append('TRUE_MEMBERS')
-    
-    ## divide to conquer! (take squares around each cluster position)
-    ## radius is the length of the square in Mpc
-    galaxyData, cid, radii, PDFz = importTable(galaxyInFile,clusters,colNames,rmax=rmax,r_in=r_in,r_out=r_out,
-                                    zrange=zrange,radius=radius,window=window)
+    ## get the data
+    galaxyData = Table(getdata(galaxyInFile))
 
-    gid,ra,dec,z,zerr,mag,magerr = getVariables(galaxyData,colNames,zsigma=window)
-
-    bkgGalaxies = (radii>r_in)&(radii<r_out)
+    ## get variables
+    cid,gid,ra,dec,radii,z,z_noise,zerr,mag,magerr,PDFz,bkgFlag = getVariables(galaxyData,colNames,zsigma=window) 
     
-    inputdata = [cid, gid, ra, dec, radii, z, mag, zerr, magerr, PDFz, bkgGalaxies]
-    Cnames = ['CID', 'GID', 'RA', 'DEC', 'R', 'z', 'mag','zerr','magerr', 'PDFz', 'Bkg']
+    inputdata = [cid, gid, ra, dec, radii, z_noise, mag, zerr, magerr, PDFz, z, bkgFlag]
+    Cnames = ['CID', 'GID', 'RA', 'DEC', 'R', 'z', 'mag', 'zerr', 'magerr', 'PDFz', 'z_true', 'Bkg']
 
     if simulation:
-        true_members = cid<0
-        w, = np.where((galaxyData['HALOID']==cid)&(galaxyData['TRUE_MEMBERS']==True))
-        true_members[w] = True
+        Cnames.append('HALOID');Cnames.append('True');Cnames.append('amag'); Cnames.append('Mr')
+        inputdata.append(galaxyData['HALOID']); inputdata.append(galaxyData['TRUE_MEMBERS']);inputdata.append(galaxyData['AMAG']);inputdata.append(galaxyData['Mr'])
 
-        Cnames.append('z_true')
-        Cnames.append('True')
-        inputdata.append(galaxyData['Z'][:])
-        inputdata.append(true_members)
+    galaxy = Table(inputdata,names=Cnames)
 
-    galaxyOut = Table(inputdata,
-                      names=Cnames)
+    ## make cuts on the galaxy dataset
+    galaxy_cut = do_galaxy_cuts(galaxy,clusters,zrange=zrange)
+
+    ## get distance from the cluster center
+    galaxyCircles = getRadii(galaxy_cut,clusters,h=h,rmax=radius,r_in=r_in,r_out=r_out,simulation=simulation)
+
+    ## cut galaxies outside the maglim
+    galaxy_maglim = galaxyCircles[galaxyCircles['dmag']<=0.]
+    # galaxy_maglim = galaxyCircles[(galaxyCircles['Mr']-np.log10(h))<=-19.5]
     
+    ## compute pdfz
+    pz,idxs = memb.computePDFz(galaxy_maglim['z'],galaxy_maglim['zerr'],galaxy_maglim['CID'],clusters,window,method='pdf')
+    galaxy_maglim['PDFz'][idxs] = pz
+
+    # ids, indices = np.unique(galaxyCircles['GID','CID'], return_index=True)
+    # galaxyCircles = galaxyCircles[indices]
+
     logging.debug('Returning from helper.readGalaxyCat()')
-
-    return galaxyOut
-
+    return galaxy_maglim
 
 if __name__ == '__main__':
     print('helper.py')

@@ -4,16 +4,16 @@
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
-from astropy import units as u
-
 
 from scipy.special import erf
 from astropy.io.fits import getdata
 from astropy.table import Table, vstack
 
+from scipy.ndimage import gaussian_filter
 from scipy import integrate
 from scipy.interpolate import interp1d
 
+from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.283)
@@ -86,68 +86,117 @@ def hod_mass_z(Ngals, z_cls, params):
 
     return m200c
 
-def doRadialBin(radii,pz,width=0.1,testPz=False):
-    rvec = np.arange(0.1,3+width,width)
-    
-    ngals_profile = []
-    for ri in rvec:
-        # ni = np.sum( pz[ (radii>ri-width) & (radii<ri) ] )
-        ni = len(pz)
-        if testPz:
-            ni = np.sum( pz[ (radii<ri) ] )
-        ngals_profile.append(ni)
+def binsCounts(x,n):
+    """get n points per bin"""
+    xs = np.sort(x,kind='mergesort')
+    xedges = [ xs[0] ]
+    for i in np.arange(0,len(xs),n):
+        if (i+n)<len(xs)-1:
+            xi = (xs[i+n+1]+xs[i+n])/2.
+        else:
+            xi = xs[-1]
+        xedges.append(xi)
 
-    return np.array(ngals_profile), rvec
+    xmean = [(xedges[i+1]+xedges[i])/2 for i in range(len(xedges)-1)]
+    return np.array(xedges), np.array(xmean)
 
-def calcR200(radii,pz,cls_id,z_cls,nbkg,rmax=3,testPz=False):
-    ngals_cls, rbin = doRadialBin(radii,pz,width=0.1,testPz=testPz)
+def binsCountsWeighted(x,weights,n):
+    """get n points per bin"""
+    idx = np.argsort(x,kind='mergesort')
+    xs,ws = x[idx], weights[idx]
 
-    ngals = ngals_cls-nbkg*np.pi*rbin**2
+    xedges = []
+
+    ni = 0
+    for i in range(len(xs)):
+        if ni>=n:
+            xedges.append(xs[i])
+            ni = 0
+        else:
+            ni += ws[i]
+    # xedges = xs[w+1]
+    xmean = [(xedges[i+1]+xedges[i])/2 for i in range(len(xedges)-1)]
+    return np.array(xedges), np.array(xmean)
+
+def doRadialBin(radii,pz,rvec,testPz=False):
+    ngals,_ = np.histogram(radii,weights=pz,bins=rvec)[0]
+    ng_density = ngals/(np.pi*(rvec[1:]**2-rvec[:-1]**2))
+    r_mean = 0.5*(rvec[1:]+rvec[:-1])
+    return ng_density, r_mean
+
+def calcR200(radii,pz,cls_id,z_cls,nbkg,rmax=3,testPz=True):
+    w, = np.where(radii<=rmax)
+    radii, pz = radii[w], pz[w]
+
+    new_way = False
+
+    if new_way:
+        # rvec,rbin = binsCounts(radii,20) ## 5 galaxies per bin
+        rvec,rbin = binsCountsWeighted(radii,pz,3)
+        # print("3 galaxies binning",rbin)
+
+    else:
+        rmin,step=0.1,0.1
+        rbin=np.r_[rmin:rmax:step,rmax]
+
+    area = np.pi*rbin**2
+    ngals_cls = np.array([np.sum(pz[radii<=ri]) for ri in rbin]) ## number of galaxies (<R) 
+
+    ngals = ngals_cls-nbkg*area
+    # ngals = ngals_cls-(nbkg*area)
+    ngals = np.where(ngals<0.,0.,ngals)
+
     ####params=[11.6,12.45,1.0,12.25,-0.69]#parameters for mass conversion - see table 4 in Tinker paper
     params = [11.59,12.94,1.01,12.48,-0.69]#parameters for mass conversion - see table 4 in Tinker paper
+    # params = [12.87,13.87,1.08,10.29,-0.12]
+
     mass = hod_mass_z(ngals,z_cls,params) #calculate mass given ngals (see above functions)
 
     volume = (4./3)*np.pi*rbin**3
     mass_density=(mass)/volume
 
-    mass_density=np.where(mass_density<0.1,1e11,mass_density)
+    # mass_density=np.where(mass_density<0.1,1e11,mass_density)
     pc=200*np.ones_like(radii)
     rho_crit = rhoc(0)
-    critdense1 = crit_density(rho_crit,z_cls,0.23,0.77)
+    critdense1 = crit_density(1.35984671381e+11,z_cls,0.23,0.77)
     critdense = critdense1*np.ones_like(rbin)
 
-    X=2000 #desired excess over critical density, ex. if X=200, calculates R/M200
-    dX=10  #acceptance window around X
+    X=200 #desired excess over critical density, ex. if X=200, calculates R/M200
+    dX=2  #acceptance window around X
     ratio=mass_density/critdense
 
     f=interp1d(rbin,ratio,fill_value='extrapolate')
     radii_new=np.linspace(0.1,rmax,10000)
     ratio_new=f(radii_new)
-    r200m=radii_new[np.where( (ratio_new>=X-dX)&(ratio_new<=X+dX) )] #find possible r200s within acceptance range
     
-    if r200m.size > 0:
-        r200m=np.median(r200m) #mean of all possible r200s is measured r200
+    if new_way:
+        ratio_new=gaussian_filter(ratio_new,sigma=1) ## avoid noise
 
+    w, = np.where((ratio_new>=X-dX)&(ratio_new<=X+dX))
+    r200m=radii_new[w] #find possible r200s within acceptance range
+
+    # w = np.nanargmin(np.abs(ratio_new-X))
+    # r200m = radii_new[w]
+
+    if r200m.size > 0:
+        r200m=np.mean(r200m) #mean of all possible r200s is measured r200
     else:
-        ## Try r500
-        X=500
-        r200m=radii_new[np.where( (ratio_new>=X-dX)&(ratio_new<=X+dX) )] #find possible r200s within acceptance range
-        
-        if r200m.size > 0:
-            r200m=np.median(r200m)/0.65 #mean of all possible r200s is measured r200
-        else:
-            r200m = 0
-            print('bad cluster:',cls_id,'ratio min/max:',min(ratio_new),max(ratio_new))
+        r200m=0.1 #bogus r200=0 if nothing within acceptance range
+        #print 'bad cluster:',cls_id,'ratio min/max:',min(ratio_new),max(ratio_new)
 
     return r200m
 
-def checkR200(r200,z_cls,M200=5e15):
+def checkR200(r200,z_cls,M200=5e13):
     """ check if r200 is less than 0.5Mpc
         in the case of an error it computes R200 from the default Mass (M200)
     """
-    if r200<0.5:
-        print('bad cluster')
-        r200 = convertM200toR200(M200,z_cls)
+    # minv = convertR200toM200(r200,z_cls)
+    # if minv<M200:
+    #     print('bad cluster')
+    #     r200 = convertM200toR200(M200,z_cls)
+
+    if r200<0.2:
+        r200 = 0.2
         # r200 = 1.
     return r200
 
@@ -170,8 +219,10 @@ def profileNFW(R,R200,c=3):
         bogusval=-99.*np.ones_like(R)
         return bogusval
 
-def doPDF(radii,R200,c=3):
+def doPDF(radii,R200,c=3,rc=0.2):
     density = profileNFW(radii,R200,c=c) ## without norm
+    # density = np.where(radii<rc,np.mean(density[radii<rc]), density)
+    
     return density
 
 def norm_const_integrand(R,R200,c):
@@ -182,35 +233,47 @@ def norm_constant(R200,c=3):
     const=1/integral
     return const
     
-def convertM200toR200(M200,z):
+def convertM200toR200(M200,z,nc=200):
     ## M200 in solar masses
     ## R200 in Mpc
     rho = rhoc(z)
-    R200 = ( M200/(200*4*np.pi*rho/3) )**(1/3.)
+    R200 = ( M200/(nc*4*np.pi*rho/3) )**(1/3.)
     return R200
 
+def convertR200toM200(R200,z, nc=200):
+    ## M200 in solar masses
+    ## R200 in Mpc
+    rho = rhoc(z)
+    M200 = nc*4*np.pi*rho*R200**3/3
+    return M200
+
 ######################
-def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,testPz=False,compute=True):
+def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,testPz=True,compute=True):
     ## estimate R200
     ncls = len(cat)
     r200m = []
+    raper = []
 
     for idx in range(ncls):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        magLim_i = cat['magLim'][idx,1]
+        # magLim_i = cat['magLim'][idx,0] ## r-band cut
 
-        gal = gals[(gals['CID']==cls_id)&(gals['mag'][:,2]<=magLim_i)]
+        gal = gals[(gals['CID']==cls_id)&(gals['dmag']<=0.)]
+        # gal = gals[(gals['CID']==cls_id)&(gals['mag'][:,1]<=magLim_i)] ## r-band cut
+        # gal = gals[(gals['CID']==cls_id)&(gals['amag'][:,1]<=-20.5)]
 
-        if compute:
-            r200i = calcR200(gal['R'],np.ones_like(gal['PDFz']),cls_id,z_cls,nbkg[idx],rmax=rmax,testPz=testPz)
-        else:
-            r200i = 0.1
-
+        # if compute:
+        r200i = calcR200(gal['R'],(gal['PDFz']),cls_id,z_cls,nbkg[idx],rmax=rmax,testPz=testPz)
         r200i = checkR200(r200i,z_cls,M200=defaultMass)
-        print('r200:',r200i)
+
+        ## r500
+        raperi = 1.*r200i
+
+        # print('r200:',r200i)
+        raper.append(raperi)
         r200m.append(r200i)
     
-    return np.array(r200m)
+    return np.array(r200m), np.array(raper)
 
     # else: ## in the case that M200 is provided
     #     r200m = convertM200toR200(M200,cat['redshift'])
@@ -224,9 +287,10 @@ def computeN200(gals, cat, r200, nbkg, testPz=False):
     good_indices, = np.where(nbkg>=0)
     for idx in good_indices:
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        magLim_i = cat['magLim'][idx,1] ## magnitude cut in the i band
+        # magLim_i = cat['magLim'][idx,1] ## magnitude cut in the i band
 
-        mask = (gals['CID']==cls_id)&(gals['R']<=(r200[idx]))&(gals['mag'][:,2]<magLim_i)
+        mask = (gals['CID']==cls_id)&(gals['R']<=(r200[idx]))&(gals['dmag']<=0.)
+        # mask = (gals['CID']==cls_id)&(gals['R']<=(r200[idx]))&(gals['mag'][:,2]<magLim_i)
         gal = gals[mask]
 
         N_field = float(nbkg[idx]*np.pi*r200[idx]**2)
@@ -242,7 +306,7 @@ def computeN200(gals, cat, r200, nbkg, testPz=False):
             N200i = N_cls_field
         N200.append(N200i)
         
-        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=r200[idx])&(gals['mag'][:,2]<magLim_i))
+        indices, = np.where((gals['CID']==cls_id)&(gals['R']<=r200[idx])&(gals['dmag']<=0.))
         if len(indices)>0:
             galsFlag[indices] = True
             new_idx = np.arange(count0,count0+len(indices),1,dtype=int)
@@ -251,40 +315,74 @@ def computeN200(gals, cat, r200, nbkg, testPz=False):
 
     return np.array(N200), galsFlag, keys
 
-def computeRadialPDF(gals,cat,r200,nbkg,keys,c=3.53,plot=False):
+def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
     '''it's missing the normalization factor
     '''
-    pdf = np.empty(0,dtype=float)
-    pdf_bkg = np.empty(0,dtype=float)
+    # pdf = np.empty(0,dtype=float)
+    # pdf_bkg = np.empty(0,dtype=float)
 
-    for idx,_ in enumerate(keys):
+    pdf_cls, pdf_cf, pdf_field = [], [], []
+    
+    rmed = (rvec[1:]+rvec[:-1])/2
+    rvec2=rvec+4
+    for idx,galIndices in enumerate(keys):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        r2 = r200[idx]
+        r2,ra = r200[idx], raper[idx]
 
-        galIndices = np.where((gals['CID']==cls_id)&(gals['Gal']==True))
+        galIndices, = np.where((gals['CID']==cls_id)&(gals['Gal']==True))
+        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
+
+        g2, = np.where( (gals['CID']==cls_id)&(gals['dmag']<=0.))
+        # g2, = np.where( (gals['CID']==cls_id)&(gals['mag'][:,1]<=cat['magLim'][idx,0]) )
+        # g2, = np.where( (gals['CID']==cls_id)&(gals['amag'][:,1]<=-20.5) ) ## Mr<=-19.5
+
         radii = gals['R'][galIndices]
+        radii2 = gals['R'][g2]
+        radii_bkg = gals['R'][bkgGalaxies]
+        
+        probz = gals['PDFz'][g2]
+        probz_bkg = gals['PDFz'][bkgGalaxies]
 
         # pdfi = (N2/area200)*doPDF(radii,r2,c=c)
         ni = nbkg[idx]
         area200 = np.pi*(r2/c)**2
+
+        area_aper = np.pi*(ra)**2
         N2 = (len(radii)/area200)-ni
-        normConstant = 1*norm_constant(r2,c=c)
-        pdfi = normConstant*doPDF(radii,r2,c=c)
-        pdf = np.append(pdf,pdfi)
+        
+        normConstant = norm_constant(ra,c=c)
 
-        if plot:
-            ni = nbkg[idx]
-            area200 = np.pi*(r2/c)**2
-            N2 = (len(pdfi)/area200)-ni
+        # idxs = np.trunc(rmed/0.15)
+        # rapers = np.unique(0.15*(idxs+1))
 
-            galaxies = np.where((gals['CID']==cls_id))
-            radx = gals[galaxies]['R']
-            pdfx = N2*normConstant*doPDF(radx,r2,c=c)
-            plotPradial(radx,pdfx,gals[galaxies],ni,cls_id='Buzzard_%i'%(cls_id))
+        # idxs = np.where(idxs<=round(r2/0.15), idxs, round(r2/0.15))
 
-    pdf_bkg = np.ones_like(pdf)
+        # normConstant = np.array([norm_constant(rx,c=c) for rx in rapers])
+        # normConstant = normConstant[idxs.astype(np.int)]
 
-    return pdf, pdf_bkg
+        # pdfi = normConstant*doPDF(radii,r2,c=c)
+        # pdf = np.append(pdf,pdfi)
+
+        pdf_cls_i = normConstant*doPDF(rmed,r2,c=c)
+        pdf_cls.append(pdf_cls_i)
+
+        area = np.pi*(rmed**2)
+        pdf_cf_i = np.array([np.sum(probz[radii2<=ri]) for ri in rmed])#doRadialBin(radii2,probz,rvec,testPz=True)
+        pdf_cf_i = pdf_cf_i/area#gaussian_filter(pdf_cf_i,sigma=2)
+
+        area2 = np.pi*(rvec2[1:]**2)
+        pdf_f_i = np.array([np.sum(probz_bkg[radii_bkg<=ri]) for ri in rvec2[1:]])
+        pdf_f_i/= area2
+        # pdf_f_i = gaussian_filter(pdf_f_i,sigma=2)
+        
+        pdf_cf.append(pdf_cf_i)
+        pdf_field.append(pdf_f_i)
+        
+    # pdf_bkg = np.ones_like(pdf)
+    # pdf_field = [np.ones_like(pdf_i) for pdf_i in pdf_cls]
+
+    pdf_list = [pdf_cls, pdf_cf, pdf_field]
+    return pdf_list
 
 
 def interpData(x,y,xmin,xmax):
@@ -292,7 +390,6 @@ def interpData(x,y,xmin,xmax):
     yint = interp1d(x,y,fill_value='extrapolate')
 
     return bins, yint(bins)
-
 
 def plotPradial(radii,sigma,galaxies,nbkg,cls_id='none'):
     bin1 = np.trunc(galaxies['R']/0.1)
@@ -332,14 +429,17 @@ def plotPradial(radii,sigma,galaxies,nbkg,cls_id='none'):
     plt.legend()
     plt.savefig('./check/probRadial/%s_radial_density.png'%(cls_id))
 
+def doPr(R,R200,ntot,sBkg,c=3.53):
+    kappa = (ntot-sBkg)*norm_constant(R200,c=c)
+    Pr = (kappa)*doPDF(R,R200,c=c)/((kappa)*doPDF(R,R200,c=c) + sBkg)
+    return Pr
 
-# def Aeff_integrand(R,R200,kappa,sBkg):
-#     Rcore=R200/100.
-#     p=np.where( R>Rcore,2*np.pi*R*doPr(R,R200,kappa,sBkg),2*np.pi*Rcore*doPr(Rcore,R200,kappa,sBkg) )
-#     return p
+def Aeff_integrand(R,R200,ntot,sBkg):
+    Rcore=R200/100.
+    p=np.where( R>Rcore,2*np.pi*R*doPr(R,R200,ntot,sBkg),2*np.pi*Rcore*doPr(Rcore,R200,ntot,sBkg) )
+    return p
 
-# def scaleBkg(R200,kappa,sBkg,r_in=4.,r_out=6):
-#     area_annulus=(np.pi*r_out**2.)-(np.pi*r_in**2.)
-#     area_effective,err=integrate.quad(Aeff_integrand,0,R200,args=(R200,kappa,sBkg))
-#     scale=area_effective/area_annulus
-#     return scale
+def scaleBkg(R200,ntot,sBkg,r_in=4.,r_out=6):
+    area_effective,err=integrate.quad(Aeff_integrand,0,R200,args=(R200,ntot,sBkg))
+    scale=area_effective
+    return scale

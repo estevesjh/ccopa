@@ -21,7 +21,7 @@ second.add_slide_images(['first_picture.png','first_picture.png'])
 build_index_page([header,second],fname=filename)
 """
 
-def build_index_page(section_list,fname='web_page_test_0.html'):
+def build_index_page(section_list,fname,header=None):
 	## closing sections
 	for si in section_list: si.close_section()
 
@@ -32,8 +32,11 @@ def build_index_page(section_list,fname='web_page_test_0.html'):
 	nav_bar_content = '\n'.join([si.line_navbar() for si in section_list])
 	nav_bar = NAVBAR%dict(sections=nav_bar_content)
 
+	## setiing header
+	if header is None: header = """\n"""
+
 	## putting content and navigation bar on the index synthax
-	index = INDEX%dict(navigation_bar=nav_bar, content=contents)
+	index = INDEX%dict(navigation_bar=nav_bar, content=contents, header=header)
 
 	with open(fname,'w') as out:
 		out.write(index)
@@ -78,9 +81,10 @@ class sections:
 			caption = ['Figure %i.%i '%(self.k,i) for i,img in enumerate(files)]
 		else:
 			caption = ['Figure %i.%i :'%(self.k,i)+ci for i,ci in enumerate(caption)]
-			block = '\n'.join([FIGURE%dict(fname=img, caption =ci) for img,ci in zip(files,caption) ])
+		
+		bulk = '\n'.join([FIGURE%dict(fname=img, caption =ci) for img,ci in zip(files,caption) ])
 
-		return self.add_to_section(block)
+		return self.add_to_section(bulk)
 
 	def add_slide_images(self,files):
 		ks = next(self._ks2)
@@ -106,12 +110,48 @@ class sections:
 			table_synthax += '\n</div>'
 
 		return self.add_to_section(table_synthax)
+
+	def row_cluster_info(self,table,buttom=None):
+		header = """<table class="w3-table-all w3-hoverable">"""
 		
-TABLE = """
-  <tr>
-      <td>%(key)s</td>
-      <td>%(val)s</td>
-  </tr>"""
+		if buttom is not None:
+			ks = next(self._ks2)
+			ac = ACCORDION%dict(k=ks,label=buttom)
+			header = ac+header
+		
+		header_table = """\n  <thead>\n    <tr class="w3-light-grey">"""+cluster_info
+
+		bulk = cluster_info_row.format(table['CID'],table['RA'],table['DEC'],table['redshift'])
+		table_synthax = header+header_table+bulk
+
+		return self.add_to_section(table_synthax)
+
+	def close_page(self):
+		self._ks = 0
+		self._ks2 = 0
+
+cluster_info = """
+  <thead>
+    <tr class="w3-light-grey">
+	  <th>CID</th>
+      <th>RA</th>
+      <th>DEC</th>
+      <th>redshift</th>
+    </tr>
+  </thead>
+"""
+cluster_info_row="""
+  <tbody>
+    <tr>
+      <th>{}</th>
+      <td>{:.5f}</td>
+      <td>{:5f}</td>
+      <td>{:.3f}</td>
+    </tr>
+  </tbody>
+</table>	
+"""
+columns_type = ['i','.5f','.5f','.3f','.1f']
 
 ACCORDION = """
 <button onclick="myFunction('Demo%(k)s')" class="w3-btn w3-block w3-blue w3-left-align" style="width:50%%"><b>%(label)s</b> </button>
@@ -124,6 +164,7 @@ TABLE = """
       <td>%(val)s</td>
   </tr>
 """
+
 INDEX = """
 <!DOCTYPE html>
 <html>
@@ -154,19 +195,8 @@ body, h1,h2,h3,h4,h5,h6 {font-family: "Montserrat", sans-serif}
 <!-- PAGE CONTENT -->
 <div class="w3-main w3-content" style="max-width:1600px;margin-top:60px">
 <div class="w3-padding-large" style="max-width:1600px;margin-top:60px" id="main">
-	<!-- Header/Home -->
-	<header class="w3-container w3-padding-32 w3-center w3-blue" id="home">
-	<h1 class="w3-jumbo"> CoPACABAna</h1>
-		<p>Color Probabilistic Assignment for Clusters And Bayesian Analysis.</p>
-		<!-- img src="/w3images/man_smoke.jpg" alt="boy" class="w3-image" width="992" height="1108"-->
-	</header>
 
-<div class="w3-content w3-justify w3-text-grey w3-padding-64">
-<h1> Welcome our verification page! </h1>
-
-<p> If it is your first time here and you want to know more about how it is our analalysis, 
-please read at this <a href="https://github.com/estevesjh/ccopa"> link </a> </p>
-</div>
+%(header)s
 
 %(content)s
 
