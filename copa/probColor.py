@@ -99,6 +99,11 @@ def monteCarloSubtraction(p_field):
 
     return idx_subtracted
 
+def scaleSTD(x,weights=None):
+    xmean = np.average(x,weights=weights)
+    xstd  = (np.average((x-xmean)**2, weights=weights))**(1/2)
+    return (x-xmean)/(xstd), xmean, xstd
+
 def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight=[None,None],bandwidth=0.05,sampling=False):
     probz, probz_bkg = weight
 
@@ -106,13 +111,17 @@ def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight
     # kernel = computeColorMagnitudeKDE(mag[w],color[w],bandwidth=bandwidth)
     # kernel_bkg = computeColorMagnitudeKDE(mag_bkg[w2],color_bkg[w2],bandwidth=bandwidth)
 
+    ## scaling the distribution
+    color, u, s = scaleSTD(color,weights=probz)
+    color_bkg = (color_bkg-u)/s
+    values = (color_vec-u)/s
+
     kernel = computeColorKDE(color,weight=probz,silvermanFraction=10)
     kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,silvermanFraction=10)
 
     nc = (ncls-nbkg)
     if nc<0: nbkg = ncls = nc = 1
-
-    values = color_vec
+    
     kde = kernel(values)
     kde_bkg = kernel_bkg(values)
 
@@ -140,7 +149,7 @@ def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight
         if len(idx)>3:
             # kernel = computeColorKDE(color[idx],weight=probz[idx],silvermanFraction=10.)
             # kernel_sub = computeColorMagnitudeKDE(mag_sample[idx],color_sample[idx],silvermanFraction=10)
-            kernel_sub = computeColorKDE(value_sample[idx],silvermanFraction=20)
+            kernel_sub = computeColorKDE(value_sample[idx],silvermanFraction=10)
             kde_sub = kernel_sub(values)
             
         else:

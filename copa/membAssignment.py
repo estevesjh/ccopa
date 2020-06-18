@@ -112,7 +112,7 @@ def computeNorm(gals,cat,r200,nbkg):
         n_cls_field = np.nansum(probz)
         n_gals = n_cls_field-nb*(np.pi*r2**2)
 
-        ni = n_gals/(nb*(np.pi*r2**2))
+        ni = n_gals#/(nb*(np.pi*r2**2))
         if ni<0:
             print('norm less than zero:',ni)
         
@@ -124,18 +124,35 @@ def computeNorm(gals,cat,r200,nbkg):
     return np.array(norm), np.array(norm_vec)
 
 
-def doProb(ngals,nbkg,norm,normed=True):
+# def doProb(ngals,nbkg,norm,normed=True):
+    
+    # if normed:
+    #     ntot = ngals.sum()+nbkg.sum()
+    #     ngals /= ngals.sum()
+    #     nbkg /= nbkg.sum()
+
+#     prob = norm*ngals/(norm*ngals+nbkg)
+#     prob[np.isnan(prob)] = 0.
+    
+#     prob = np.where(prob>1,1.,prob)
+#     prob = np.where(prob<0.,0.,prob)
+    
+#     return prob
+
+def doProb(Pgals,Pbkg,Ngals,Nbkg, normed=True):
+    ratio = (Ngals+Nbkg)/( np.sum(Ngals*Pgals) + np.sum(Nbkg*Pbkg) )
+    Pgals *= ratio
+    Pbkg *= ratio
     
     if normed:
-        ngals /= ngals.sum()
-        nbkg /= nbkg.sum()
+        Pgals /= Pgals.sum()
+        Pbkg  /= Pbkg.sum()
 
-    prob = norm*ngals/(norm*ngals+nbkg)
+    prob = (Ngals*Pgals)/(Ngals*Pgals+Nbkg*Pbkg)
     prob[np.isnan(prob)] = 0.
-    
+
     prob = np.where(prob>1,1.,prob)
     prob = np.where(prob<0.,0.,prob)
-    
     return prob
 
 def _computeNorm(gal,r200,nbkg):
@@ -147,7 +164,7 @@ def _computeNorm(gal,r200,nbkg):
     
     area = np.pi*(rbins[1:]**2-rbins[:-1]**2)
     Nbkg = nbkg*area
-    norm = (Ngals-Nbkg)/Nbkg
+    norm = (Ngals-Nbkg)#/Nbkg
     
     w, = np.where(norm>0)
     if w.size>0:
@@ -156,71 +173,72 @@ def _computeNorm(gal,r200,nbkg):
         norm = -1.*np.ones_like(Nbkg)
     return norm
 
-def computeProb(gal, keys, norm):
+def computeProb(gal, keys, norm, nbkg):
     gal = set_new_columns(gal,['Pmem','Pc','Pz','Pr'],val=0.)
     
     # pdfr, pdfz, pdfc, pdf = gal['pdfr'], gal['pdfz'], np.mean(gal['pdfc'],axis=1), gal['pdf']
     # pdfr_bkg, pdfz_bkg, pdfc_bkg, pdf_bkg = gal['pdfr_bkg'], gal['pdfz_bkg'], np.mean(gal['pdfc_bkg'],axis=1), gal['pdf_bkg']
 
-    pdfr, pdfz, pdfc, pdf = gal['pdfr'], gal['pdfz'], gal['pdfc'][:,2], gal['pdf']
-    pdfr_bkg, pdfz_bkg, pdfc_bkg, pdf_bkg = gal['pdfr_bkg'], gal['pdfz_bkg'], gal['pdfc_bkg'][:,2], gal['pdf_bkg']
+    pdfr, pdfz, pdfc, pdf = gal['pdfr'], gal['pdfz'], gal['pdfc'], gal['pdf']
+    pdfr_bkg, pdfz_bkg, pdfc_bkg, pdf_bkg = gal['pdfr_bkg'], gal['pdfz_bkg'], gal['pdfc_bkg'], gal['pdf_bkg']
 
     zcls = gal['redshift']
-    pdfc = np.where(zcls<0.35, gal['pdfc'][:,1], gal['pdfc'][:,3])
-    pdfc_bkg = np.where(zcls<0.35, gal['pdfc_bkg'][:,1], gal['pdfc_bkg'][:,3])
+    pdfc = np.where(zcls<0.35, gal['pdfc'][:,1], gal['pdfc'][:,2])
+    pdfc_bkg = np.where(zcls<0.35, gal['pdfc_bkg'][:,1], gal['pdfc_bkg'][:,2])
+
+    # pdfc = np.product(pdfc,axis=1)
+    # pdfc_bkg = np.product(pdfc_bkg,axis=1)
+
     probz = gal['PDFz']
     rbins = np.linspace(0.,1.,4)
     rmed = (rbins[1:]-rbins[:-1])/2.
     for i,idx in enumerate(keys):
         # ni = gal['norm'][idx]
         ni = norm[i]
+        nb = nbkg[i]
         # radii = gal['Rn'][idx]
-        # ni = interpData(rmed,ni,radii)
 
         radii = gal['R'][idx]
-        radi2 = 0.15*(np.trunc(radii/0.15)+1) ## bins with 0.125 x R200 width
-        areag2 = 1#np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
+        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
+        # area  = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
+        area = float( np.unique(np.pi*(gal['R200'][idx])**2)[0] )
+        Nb = nb*area
 
-        pz = probz[idx]
-        ng = np.sum(pz)
+        pz0 = 1#probz[idx]
+        pz0b= 1#(1-pz0)
 
+        ## Effective sample size
+        # pz0 *= (np.sum(pz0)**2 / np.sum(pz0**2))/len(pz0)
+        # pz0b*= (np.sum(pz0b)**2 / np.sum(pz0b**2))/len(pz0b)
+
+        # print('neff: %.2f'%( np.sum(pz0)**2 / np.sum(pz0**2) ))
+        # print('ratio: %.2f'%( np.sum(pz0)**2 / np.sum(pz0**2)/len(pz0) ))
         ## scaling for pz [0,1]
-        pzmax = np.percentile(pz,99)
-        pz = pz/pzmax
-        pzb= 1#np.where(pz>pzmax,0.,(1-pz))
+        # pzmax = np.max(pz0)
+        # pz0 = pz0/pzmax
+        #np.where(pz>pzmax,0.,(1-pz))
         
         pdfri, pdfzi, pdfci = pdfr[idx], pdfz[idx], pdfc[idx]
         pdfr_bkg_i, pdfz_bkg_i, pdfc_bkg_i = pdfr_bkg[idx], pdfz_bkg[idx], pdfc_bkg[idx]
-            
-        # Ngals =  pdf[idx] 
-        # # Ngals_bkg = pdf_bkg[idx] 
-        # pdfsi = np.array([pdfri, pdfzi, pdfci])
-        # pdfs_bkg_i = np.array([pdfr_bkg_i, pdfz_bkg_i, pdfc_bkg_i])
-
-        # normi = np.sum(pdfsi,axis=0)/np.product(pdfsi,axis=1)
-        # norm_bkgi = np.sum(pdfs_bkg_i,axis=0)/np.product(pdfs_bkg_i,axis=1)
-
+        
+        # pdfz_bkg_i = pdfz_bkg_i*np.max(pdfz_bkg_i)/np.max(pdfzi)
+        
         pn = np.sum(pdfri),np.sum(pdfzi),np.sum(pdfci)
         pn_bkg = np.sum(pdfr_bkg_i),np.sum(pdfz_bkg_i),np.sum(pdfc_bkg_i)
 
-        Ngals =  pdfri*pdfzi*pdfci*(np.sum(pn))/np.sum(pdfri*pdfzi*pdfci)
-        Ngals_bkg = pdfr_bkg_i*pdfz_bkg_i*pdfc_bkg_i*(np.sum(pn_bkg))/np.sum(pdfr_bkg_i*pdfz_bkg_i*pdfc_bkg_i)#(np.product(pn_bkg))
+        Lgals =  pdfri*pdfzi*pdfci*(np.sum(pn))/np.sum(pdfri*pdfzi*pdfci)#np.product(pn)#
+        Lgals_bkg = pdfr_bkg_i*pdfz_bkg_i*pdfc_bkg_i*(np.sum(pn_bkg))/np.sum(pdfr_bkg_i*pdfz_bkg_i*pdfc_bkg_i)#(np.product(pn_bkg))##(np.product(pn_bkg))
 
-        pr = doProb(pz*pdfri,pdfr_bkg_i,ni/areag2,normed=True)
-        pz = doProb(pdfzi,pdfz_bkg_i,ni/areag2,normed=True)
-        pc = doProb(pz*pdfci,pdfc_bkg_i,ni/areag2,normed=True)
+        # factor = np.sum(pz0)/(np.sum(pz0)+np.sum(pz0b))
+        # pz0 *= factor
 
-        # pn = np.sum(pdfri),np.sum(pdfci)
-        # pn_bkg = np.sum(pdfr_bkg_i),np.sum(pdfc_bkg_i)
+        # print('factor: %.3f'%factor)
+        pr = doProb(pz0*pdfri,pz0b*pdfr_bkg_i, ni, Nb)
+        pz = doProb(    pdfzi, pdfz_bkg_i, ni, Nb)
+        pc = doProb(pz0*pdfci,pz0b*pdfc_bkg_i, ni, Nb)
 
-        # Ngals =  pz*pdfri*pdfci*(np.sum(pn))/np.sum(pdfri*pdfci)
-        # Ngals_bkg = (1-pz)*pdfr_bkg_i*pdfc_bkg_i*(np.sum(pn_bkg))/np.sum(pdfr_bkg_i*pdfc_bkg_i)#(np.product(pn_bkg))
+        pmem = doProb(pz0*Lgals, pz0b*Lgals_bkg, ni, Nb, normed=False) #normed is used to normalize the prob. for the 3 PDFs
 
-        # pz = doProb(pdfz[idx],pdfz_bkg[idx],ni)
-        # pc = doProb(pdfc[idx],pdfc_bkg[idx],ni)
-
-        pmem = doProb(Ngals,Ngals_bkg,ni,normed=False)
-  
         gal['Pmem'][idx] = pmem
         gal['Pc'][idx] = pc
         gal['Pz'][idx] = pz
@@ -293,7 +311,14 @@ def PhotozProbabilities(zmin,zmax,membz,membzerr,fast=True):
 
 def truncatedGaussian(z,zcls,zmin,zmax,sigma,vec=False):
     if vec:
+        z0,zcls0,sigma0 = z,zcls,sigma
+
+        z_shape = zcls.shape
         s_shape = sigma.shape
+        if z_shape!=s_shape:
+            print('PDFZ : error')
+            print('z_shape,s_shape:',z_shape,s_shape)
+            
         sigma = sigma.ravel()
         z = z.ravel()
         zcls = zcls.ravel()
@@ -303,11 +328,17 @@ def truncatedGaussian(z,zcls,zmin,zmax,sigma,vec=False):
     myclip_b = zmax
     my_mean = zcls
     my_std = sigma
+    eps = 1e-9
 
-    a, b = (myclip_a - my_mean) / my_std, (myclip_b - my_mean) / my_std
-    pdf = truncnorm.pdf(z, a, b, loc = my_mean, scale = my_std)
+    a, b = (myclip_a - my_mean) / (my_std+eps), (myclip_b - my_mean) / (my_std+eps) 
+    try:
+        pdf = truncnorm.pdf(z, a, b, loc = my_mean, scale = (my_std+eps))
+        if vec: pdf.shape = s_shape
+        
+    except:
+        print('PDFz error: ecception')
+        pdf = gaussian(z0,zcls0,sigma0)
 
-    if vec: pdf.shape = s_shape
     return pdf
 
 def gaussian(x,mu,sigma):
@@ -331,6 +362,7 @@ def getPDFz(membz,membzerr,zcls,sigma,method='pdf'):
 
     elif method=='pdf':
         # sigma = np.median(membzerr)
+        # print('sigma: %.3f'%sigma)
 
         # delta_z = 0.025
         zmin, zmax = (zcls-5*sigma), (zcls+5*sigma)
@@ -347,14 +379,14 @@ def getPDFz(membz,membzerr,zcls,sigma,method='pdf'):
             pdfc = truncatedGaussian(zz,zcls,zmin,zmax,sigma)
             pdfz = truncatedGaussian(zz,yy,zmin,zmax,yy2,vec=True)
 
-        pos = pdfc*pdfz
+        pos = pdfz#*pdfc
         norm_factor = integrate.trapz(pos,x=zz)
         # inv_factor = np.where(norm_factor[:, np.newaxis]<1e-3,0.,1/norm_factor[:, np.newaxis])
 
         pdf = pos/norm_factor[:, np.newaxis] ## set pdf to unity
         pdf[np.isnan(pdf)] = 0.
         
-        w, = np.where( np.abs(z-zcls)<= 1.5*sigma) ## integrate in 1.5*sigma
+        w, = np.where( np.abs(z-zcls) <= 1.5*sigma) ## integrate in 1.5*sigma
         pdf = integrate.trapz(pdf[:,w],x=zz[:,w])
         pdf = np.where(pdf>1., 1., pdf)
 
@@ -377,7 +409,7 @@ def computePDFz(z,zerr,cid,cat,sigma,method='pdf'):
     pdfz = np.empty((0),dtype=float)
 
     results = []
-    z = np.where(z<0.,0.,z)
+    # z = np.where(z<0.,0.,z)
     for i in range(ncls):
         z_cls, idx = cat['redshift'][i], cat['CID'][i]
         
@@ -477,14 +509,14 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,mag_pdf=False):
         mag = ggal['dmag']
         areag = np.pi*r2**2
 
-        radi2 = 0.15*(np.trunc(radii/0.15)+1) ## bins with 0.125 x R200 width
+        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
         # areag = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
 
-        gal['pdfr'][idx] = interpData(rvec,pdfri,radii)
+        gal['pdfr'][idx] = interpData(rvec,pdfri,radii)*areag
         gal['pdfz'][idx] = interpData(zvec,pdfzi,zgal)
         gal['pdfm'][idx] = interpData(mvec,pdfmi,mag)
 
-        gal['pdfr_bkg'][idx] = np.ones_like(radi2)/areag #interpData(rvec,np.ones_like(gal['pdfr'][idx]),radii)
+        gal['pdfr_bkg'][idx] = np.ones_like(radi2)#/areag #interpData(rvec,np.ones_like(gal['pdfr'][idx]),radii)
         gal['pdfz_bkg'][idx] = interpData(zvec,pdfzi_bkg,zgal)
         gal['pdfm_bkg'][idx] = interpData(mvec,pdfmi_bkg,mag)
 
@@ -512,7 +544,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,mag_pdf=False):
         gal['pdf_bkg'][idx] *= np.mean(gal['pdfc_bkg'][idx],axis=1)
         
         ng_profile = interpData(rvec,pdfr_cfi,radi2)
-        gal['norm'][idx] = (ng_profile - nb)/nb
+        gal['norm'][idx] = (ng_profile - nb*areag)#/nb
 
     gal['pdf'] = np.where(gal['pdf']<0.,0.,gal['pdf'])
     gal['pdfr'] = np.where(gal['pdfr']<0.,0.,gal['pdfr'])
@@ -638,9 +670,11 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     gal['Bkg'] = BkgFlag    ## all galaxies inside the good backgrund ring's slice
     
     print('Computing R200')
-    r200, raper = radial.computeR200(gal, cat, nbkg, rmax=3, defaultMass=M200, compute=True) ## uncomment in the case to estimate a radius
-    # r200 = cat['R200_true']
+    # r200, raper = radial.computeR200(gal, cat, nbkg, rmax=3, defaultMass=M200, compute=True) ## uncomment in the case to estimate a radius
+    # print(cat.colnames)
+    r200 = cat['R200_true']*0.7
     raper= 1.*r200
+
     # r200 = rmax*np.ones_like(cat['CID']) ## fixed aperture radii
     gal['r_aper'] = raper[cidx]
     gal['R200'] = r200[cidx]
@@ -702,7 +736,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     # galIndices = list(chunks(galCut['CID'],cat['CID'][good_indices]))
     gidx,cidx,galIndices = getIndices(galCut['CID'],cat['CID'][good_indices])
     galCut = getPDFs(galCut,galIndices,var_list,pdf_list,nbkg[good_indices],mag_pdf=False)
-    galCut = computeProb(galCut, galIndices, norm)
+    galCut = computeProb(galCut, galIndices, norm, nbkg[good_indices])
 
     print('Writing Output: Catalogs')
     if method=='old':

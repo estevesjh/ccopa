@@ -21,10 +21,10 @@ def getConfig(section, item, boolean=False, getAllVariables=False,userConfigFile
 	configFile.read(userConfigFile)
 
 	if getAllVariables:
-		out = dict()
-		for key in configFile.items():
-			for val in key[1]:
-				out[val] = key[1][val]
+		out=dict()
+		for key in list(configFile._sections):
+			for val in configFile.items(key):
+				out[val[0]] = val[1]
 		return out
 
 	# if config item not found, raise log warning
@@ -191,9 +191,11 @@ def computeColorModel():
 	clusterOutFile  = getConfig("Files","clusterStellarMassOutFile")
 
 	ncls_per_bin = 20
-	rs_outfile = getConfig("colorModel", "rs_outfile")
+	rs_outfile = getConfig("colorModel", "rsOutfile")
+	# gmmFile = getConfig("colorModel", "gmm_outfile")
+	cut = getConfig("colorModel", "cutAboveRS")
 	
-	colorModeling.colorModel(clusterOutFile,stellarMassFile,output_rs=rs_outfile)
+	colorModeling.colorModel(clusterOutFile,stellarMassFile,file_gmm=None,output_rs=rs_outfile,cutColorsAboveRS=cut)
 
 def computeClusterStellarMass():
 	stellarMassFile = stellarMassOutFile()

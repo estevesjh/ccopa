@@ -21,7 +21,7 @@ from joblib import Parallel, delayed
 
 file_path_script = __file__
 
-def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/copa_config.ini"):
+def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/copa_config_rm.ini"):
 
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)
@@ -374,8 +374,8 @@ def loadTables(kwargs,parallel=False,nbatches=20):
 	if parallel:
 		m_list, c_list = getMembAssignmentFileList(nbatches)
 		
-		n_members_missing = checkFiles(m_list)
-		n_cluster_missing = checkFiles(c_list)
+		n_members_missing = 1#checkFiles(m_list)
+		n_cluster_missing = 1#checkFiles(c_list)
 
 		if (n_members_missing>0) or (n_cluster_missing>0):
 			print('creating temporary files')

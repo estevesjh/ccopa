@@ -258,7 +258,7 @@ def joinTable(data0,data1):
     data0['index'] = np.arange(0,len(data0),1,dtype=int)
     
     new_data = join(data0, data1, keys='index', join_type='outer')
-    # new_data.remove_columns(['index','ID'])
+    new_data.remove_columns(['index','ID'])
     return new_data
     
 def matchBMAStellarMassOutputCOPA(stellarMassInfile,stellarMassOutPrefix,save=False):

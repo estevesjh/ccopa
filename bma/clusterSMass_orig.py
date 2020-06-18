@@ -19,10 +19,10 @@ def jackknife_var(x, func):
     return (n-1)/(n + 0.0) * np.sum((func(x[idx!=i]) - j_est)**2.0 for i in range(n))
 
 def lambda_star_jk(weightedmass):
-    return (weightedmass.sum())/10.**10.
+    return np.nansum(weightedmass)/10.**10.
 
 
-def haloStellarMass (filename="vt-stellar-masses.txt", outfile="vt-halos-stellar-masses.txt") :
+def haloStellarMass(filename="vt-stellar-masses.txt", outfile="vt-halos-stellar-masses.txt") :
 
     import logging
 
@@ -251,7 +251,7 @@ def computeMuStar(d,colorFit=False,trueMembers=False):
     import logging
     
     if trueMembers:
-        d = d[d['True']==True]
+        d = d[d['True']==True].copy()
         print('True members catalog size:', len(d))
 
     id = d['GID'][:]
@@ -307,7 +307,6 @@ def computeMuStar(d,colorFit=False,trueMembers=False):
     hostid = np.array(hostid).astype(int)
 
     #Control on probabilities ==0 - add other colors
-
     idx_bad = (P_COLOR <0.0001)
     P_COLOR[idx_bad] = 0.0001
 
@@ -331,17 +330,17 @@ def computeMuStar(d,colorFit=False,trueMembers=False):
         linear_mass_weight = 10**mass[ix]*P_MEMBER[ix]
         
         mass_errors = np.log(10.)*linear_mass*std[ix]
-        mass_std = np.sqrt((mass_errors**2).sum())
+        mass_std = np.sqrt(np.nansum(mass_errors**2))
 
         mass_err_weight = np.log(10.)*linear_mass*std[ix]*P_MEMBER[ix]
-        mass_std_weight = 10**(-10)*np.sqrt((mass_err_weight**2).sum())
+        mass_std_weight = 10**(-10)*np.sqrt(np.nansum(mass_err_weight**2))
 
         # #jacknife test
         weightmass = 10**mass[ix]*P_MEMBER[ix]
         lambda_err_jk = (jackknife_var(weightmass, lambda_star_jk))**0.5
             
-        sum_mass = linear_mass.sum()
-        lambda_weight = (linear_mass_weight.sum())/10.**10.
+        sum_mass = np.nansum(linear_mass)
+        lambda_weight = np.nansum(linear_mass_weight)/10.**10.
         sum_mass_std = mass_std/sum_mass/np.log(10.)
         sum_mass = np.log10(sum_mass)
             
@@ -445,8 +444,12 @@ def haloStellarMassCOPA(filename="vt-stellar-masses.txt", outfile="vt-halos-stel
 
     logging.info('Starting clusterSMass_orig.haloStellarMass()')
 
-    d = Table(fitsio.read(filename))
+    d0 = Table(fitsio.read(filename))
     oldCat = Table(fitsio.read(cluster_infile))
+
+    ## Pmem cut
+    idx_good, = np.where(d0['Pmem']>0.01)
+    d = d0[idx_good].copy()
 
     ## compute MuStar
     data = computeMuStar(d,colorFit=colorFit)

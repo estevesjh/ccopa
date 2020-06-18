@@ -28,7 +28,7 @@ class gaussian_kde(object):
         self.neff = 1.0 / np.sum(self.weights ** 2)
 
         if silvermanFraction is not None:
-            bw_method = self.silverman_factor()/silvermanFraction
+            bw_method = self.scotts_factor()/silvermanFraction
 
         self.set_bandwidth(bw_method=bw_method)
 

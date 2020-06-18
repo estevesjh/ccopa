@@ -353,10 +353,10 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
         normConstant = norm_constant(ra,c=c)
 
         # idxs = np.trunc(rmed/0.15)
-        # rapers = np.unique(0.15*(idxs+1))
-
         # idxs = np.where(idxs<=round(r2/0.15), idxs, round(r2/0.15))
-
+        # rapers = np.unique(0.15*(idxs+1))
+        # rapers.sort()
+        
         # normConstant = np.array([norm_constant(rx,c=c) for rx in rapers])
         # normConstant = normConstant[idxs.astype(np.int)]
 
@@ -368,11 +368,11 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
 
         area = np.pi*(rmed**2)
         pdf_cf_i = np.array([np.sum(probz[radii2<=ri]) for ri in rmed])#doRadialBin(radii2,probz,rvec,testPz=True)
-        pdf_cf_i = pdf_cf_i/area#gaussian_filter(pdf_cf_i,sigma=2)
+        # pdf_cf_i = pdf_cf_i/area#gaussian_filter(pdf_cf_i,sigma=2)
 
         area2 = np.pi*(rvec2[1:]**2)
         pdf_f_i = np.array([np.sum(probz_bkg[radii_bkg<=ri]) for ri in rvec2[1:]])
-        pdf_f_i/= area2
+        # pdf_f_i/= area2
         # pdf_f_i = gaussian_filter(pdf_f_i,sigma=2)
         
         pdf_cf.append(pdf_cf_i)

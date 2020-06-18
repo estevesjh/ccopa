@@ -76,8 +76,8 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
     #         w, = np.where( (theta <= (ni+1)*(360/nslices)) & (theta >= (ni)*(360/nslices)) & bkgMask )
     #         idx_gal = np.append(idx_gal,w)
     
-    # Nbkg = (nbkg*nslices) ## mean number of galaxies in the region
-    Nbkg = np.sum(pz_bkg)
+    Nbkg = (nbkg0*nslices) ## mean number of galaxies in the region
+    # Nbkg = np.sum(pz_bkg)
 
     return Nbkg, idx_gal
 

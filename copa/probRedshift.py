@@ -7,9 +7,11 @@ import scipy.integrate as integrate
 from scipy.interpolate import interp1d
 from sklearn.neighbors import KernelDensity
 import matplotlib.pyplot as plt
+from scipy.stats import truncnorm
 
 ## local libraries
 import gaussianKDE as kde
+import helper as hp
 
 def zshift(z,z_cls):
     return (z-z_cls)/(1+z_cls)
@@ -58,16 +60,26 @@ def monteCarloSubtraction(p_field):
 
     return idx_subtracted
 
+def scaleSTD(x):
+    xmean = np.mean(x)
+    xstd  = np.std(x)
+    return (x-xmean)/(xstd), xmean, xstd
+
 def redshiftDistribuitionSubtraction(z,z_gal,z_bkg,nb,ncf,prior=[None,None],bw=0.01):
     ## compute kde
     # kernel = kde.gaussian_kde(z_gal,bw_method=bw,weights=prior[0])
     # kernel_bkg = kde.gaussian_kde(z_bkg,bw_method=bw,weights=prior[1])
 
-    kernel = kde.gaussian_kde(z_gal,silvermanFraction=2,weights=prior[0])
-    kernel_bkg = kde.gaussian_kde(z_bkg,silvermanFraction=2,weights=prior[1])
+    ## scaling the data
+    # z_gal, u, s = scaleSTD(z_gal)
+    # z_bkg = (z_bkg-u)/s
+    values = z#(z-u)/s
 
-    pdf_cf = kernel(z)
-    pdf_bkg = kernel_bkg(z)
+    kernel = kde.gaussian_kde(z_gal,silvermanFraction=1,weights=prior[0])
+    kernel_bkg = kde.gaussian_kde(z_bkg,silvermanFraction=1,weights=prior[1])
+    
+    pdf_cf = kernel(values)
+    pdf_bkg = kernel_bkg(values)
 
     nc = (ncf-nb)
     if nc<0:
@@ -84,30 +96,43 @@ def redshiftDistribuitionSubtraction(z,z_gal,z_bkg,nb,ncf,prior=[None,None],bw=0
 
     # nc = np.abs(ncf-nb)
     pdfz = np.where((Ncf-Nf)<0,0,(Ncf-Nf)/nc) ## We take only the galaxy excess
-    pdfz = pdfz/integrate.trapz(pdfz,x=z) ## set pdf to unity
+    pdfz = pdfz/integrate.trapz(pdfz,x=values) ## set pdf to unity
 
     # pdfz = np.where(pdfz<0.01,0.,pdfz)
     
     zbw = kernel.silverman_factor()/2
     return  pdfz, pdf_cf, pdf_bkg, zbw
 
-def getPosterior(pdfc,zgal,zerr,zvec,z_cls):
-    zz, yy = np.meshgrid(zvec,zgal)
-    zz, yy_err = np.meshgrid(zvec,zerr)
-    
-    pdfz = gaussian(zz,yy,yy_err)
-    
-    pos = pdfc*pdfz
-    norm_factor = integrate.trapz(pos,x=zz)
+def truncatedGaussian(z,zcls,zmin,zmax,sigma,vec=False):
+    if vec:
+        s_shape = sigma.shape
+        sigma = sigma.ravel()
+        z = z.ravel()
+        zcls = zcls.ravel()
 
-    pdf = pos/norm_factor[:,np.newaxis] ## set pdf to unity
-    pdf[np.isnan(pdf)] = 0.
-    
-    w = np.argmin(np.abs(zvec-z_cls)) ## get pdf value at z_cls
-    pdf = pdf[:,w]
+    # user input
+    myclip_a = zmin
+    myclip_b = zmax
+    my_mean = zcls
+    my_std = sigma
 
-    # print()
-    # print("bad 2:", 1.*np.count_nonzero(np.isnan(pdf))/(1.*len(pdf)) )
+    a, b = (myclip_a - my_mean) / my_std, (myclip_b - my_mean) / my_std
+    pdf = truncnorm.pdf(z, a, b, loc = my_mean, scale = my_std)
+
+    if vec: pdf.shape = s_shape
+    return pdf
+
+def verifyTrunc(zcls,sigma):
+    return (zcls-5*sigma*(1+zcls))>0.
+
+def getModel(zvec,zcls,sigma):
+
+    trunc = verifyTrunc(zcls,sigma)
+
+    if trunc:
+        pdf = truncatedGaussian(zvec,zcls,0.,np.max(zvec),sigma*(1+zcls),vec=False)
+    else:
+        pdf = gaussian(zvec,zcls,sigma*(1+zcls))
 
     return pdf 
     
@@ -117,6 +142,12 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bandwidth=0.008,zvec=np.ara
     pdf_cf = []
     pdf_field = []
     
+    if sigma==-1:
+        bias, sigma = hp.look_up_table_photoz_model(cat['redshift'])
+    else:
+        sigma = sigma*(1+cat['redshift'])
+        bias  = np.zeros_like(cat['redshift'])
+        
     for idx,_ in enumerate(keys):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
@@ -142,8 +173,8 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bandwidth=0.008,zvec=np.ara
         if len(z_gal)>1:
             k_i, k_cf_i, k_i_bkg, dz = redshiftDistribuitionSubtraction(zvec, z_gal, z_bkg, nb, n_cls_field, bw=bandwidth)
             # pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal2, z_gal, z_bkg, nb, n_cls_field, bw='silverman',prior=[probz,probz_bkg])
-            
-            k_i = gaussian(zvec,z_cls,sigma*(1+z_cls))
+
+            k_i = getModel(zvec,z_cls+bias[idx],sigma[idx])
 
         else:
             k_i = k_i_bkg = k_cf_i = np.ones_like(zvec)

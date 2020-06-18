@@ -335,9 +335,10 @@ def rsFit(x1,y,err,cut=None):
     or_fit = fitting.FittingWithOutlierRemoval(fit, sigma_clip, niter=3, sigma=2.)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore') # Ignore model linearity warning from the fitter
-        mask, model = or_fit(g_init, x1, y,weights=1.0/err)
+        # mask, model = or_fit(g_init, x1, y,weights=1.0/err)
+        model, mask = or_fit(g_init, x1, y,weights=1.0/err)
         # filtered_data = np.ma.masked_array(y, mask=mask)
-        y_sigma = y[mask.mask]
+        # y_sigma = y[mask.mask]
         a,b = model._parameters
         c,d = mask.mean(), mask.std()
     return [a,b,c,d]
@@ -373,17 +374,27 @@ def computeRS(gal,mag_list,color_list,color_error_list,indices_list):
     ## firt rest-frame color
     slope,intercept,mean_color,std_color = computeRS_singleColor(gal,None,indices_list,rest_frame_color=True)
 
+    colnames = []
+    data_out = []
     ## observed colors
     for (label) in zip(mag_list[1:],color_list[1:],color_error_list[1:]):
         a,b,c,d = computeRS_singleColor(gal,label,indices_list)
 
-        slope = np.vstack([slope,a])
-        intercept = np.vstack([intercept,b])
-        mean_color = np.vstack([mean_color,c])
-        std_color = np.vstack([std_color,d])
+        data_out.append(a)
+        data_out.append(b)
 
-    rs_parameters = Table(data=[slope.transpose(),intercept.transpose(),mean_color.transpose(),std_color.transpose()],names=['slope','intercept','mean_color','std_rs'])
-    
+        colnames.append("rs_slope_%s"%label[1])
+        colnames.append("rs_intercept_%s"%label[1])
+
+    #     slope = np.vstack([slope,a])
+    #     intercept = np.vstack([intercept,b])
+    #     mean_color = np.vstack([mean_color,c])
+    #     std_color = np.vstack([std_color,d])
+
+    # rs_parameters = Table(data=[slope.transpose(),intercept.transpose(),mean_color.transpose(),std_color.transpose()],
+    #                       names=['slope','intercept','mean_color','std_rs'])
+    rs_parameters = Table(data=data_out,names=colnames)
+
     return rs_parameters
 
 def getDeltaColor(mag,color,rs_parameters,indices,color_number=0):
@@ -405,7 +416,7 @@ def getDeltaColor(mag,color,rs_parameters,indices,color_number=0):
     return np.array(delta_colors)
 
 def computeDeltaColors(gal,rs_parameters,keys,color_list,mag_list):
-    delta_colors = getDeltaColor(gal[mag_list[0]],gal[color_list[0]],rs_parameters,indices_list,color_number=0)
+    delta_colors = getDeltaColor(gal[mag_list[0]],gal[color_list[0]],rs_parameters,keys,color_number=0)
 
     count=0
     for li,clabel in zip(mag_list[1:],color_list[1:]):
@@ -472,16 +483,23 @@ def gaussian_smooth(x,signal,nbins=35,threshold=2.):
     return signal_filetered
 
 ## filter the data
-def nbins_rs_parameters(rs_param,nbins=10):
-    _,ncolors = rs_param['slope'].shape
-    labels = ['slope','intercept','mean_color','std_rs']
+def nbins_rs_parameters(zcls,rs_param,nbins=10):
+    from scipy import interpolate
+    labels = rs_param.colnames[:-1]
 
-    for j in range(len(labels)):
-        label = labels[j]
-        for i in range(ncolors):
-            rs_param[label][:,i] = gaussian_smooth(rs_param['redshift'],rs_param[label][:,i],nbins=nbins)
-            
-    return rs_param
+    colnames = ['redshift']
+    out_data = [zcls]
+    
+    print(labels)
+    for li in labels:
+        rs_param[li] = gaussian_smooth(rs_param['redshift'],rs_param[li],nbins=nbins)
+        bla = interpolate.interp1d(rs_param['redshift'], rs_param[li], fill_value='extrapolate')(zcls)
+        
+        out_data.append(bla)
+        colnames.append(li)
+    
+    rs_new = Table(data=out_data,names=colnames)
+    return rs_new
 
 def plotColorRedshift(gal,rs_parameters,x_bin,color_list):
     x_bin_mean = rs_parameters['redshift']
@@ -558,8 +576,8 @@ def gmmFit(x,weights=None):
             ## switch colors
             mur,mub,sigr,sigb,alphar,alphab,conv = mub,mur,sigb,sigr,alphab,alphar,conv
         
-        if alphab<0.05:
-            mur,mub,sigr,sigb,alphar,alphab,conv = mur,0.,0.,sigr,0.,alphar,conv
+        # if alphab<0.05:
+        #     mur,mub,sigr,sigb,alphar,alphab,conv = mur,0.,0.,sigr,0.,alphar,conv
         
         if not conv:
             fit = gmm.fit(x[:, np.newaxis])
@@ -570,10 +588,16 @@ def gmmFit(x,weights=None):
         
         return [mur,mub,sigr,sigb,alphar,alphab,conv]
 
-def computeGMM(gal,zb_means,color_list,indices,lcolor='gr_o'):
+def filter_gmm_params(zcls,gmm_table):
+    out = gmm_table.copy()
+    for i in range(6):
+        out[:,i] = gaussian_smooth(zcls,gmm_table[:,i])
+
+    return out
+
+def computeGMM(gal,zb_means,indices,lcolor='gr_o',filter=False,):
     out = []
     for idx in indices:
-        # for clabel in color_list:
         ci,pi = gal[lcolor][idx], gal['Pmem'][idx]
 
         cut = ci>0.05
@@ -582,12 +606,32 @@ def computeGMM(gal,zb_means,color_list,indices,lcolor='gr_o'):
         
     out = np.array(out)
     
-    mean = np.array([out[:,0],out[:,1]]).transpose()
-    sigma = np.array([out[:,2],out[:,3]]).transpose()
-    alpha = np.array([out[:,4],out[:,5]]).transpose()
-    conv = out[:,6]
+    if filter:
+        out = filter_gmm_params(zb_means,out)
+
+    rs_param = np.array([out[:,0],out[:,2],out[:,4],out[:,6]]).transpose()
+    bc_param = np.array([out[:,1],out[:,3],out[:,5],out[:,6]]).transpose()
+    # conv = out[:,6]
+    # mean = np.array([out[:,0],out[:,1]]).transpose()
+    # sigma = np.array([out[:,2],out[:,3]]).transpose()
+    # alpha = np.array([out[:,4],out[:,5]]).transpose()
     
-    gmm6 = Table(data=[zb_means,mean,sigma,alpha,conv],names=['redshift','mean','sigma','alpha','conv'])
+    # gmm6 = Table(data=[zb_means,mean,sigma,alpha,conv],names=['redshift','m_rs','sigma','alpha','conv'])
+    return rs_param,bc_param
+
+def computeGMM_AllColors(gal,zb_means,ids,indices,color_list=['g-r','r-i','i-z'],filter=False):
+    out_data = [ids,zb_means]
+    colnames = ['CID','redshift']
+    for li in color_list:
+        rsi,bci = computeGMM(gal,zb_means,indices,lcolor=li,filter=filter)
+
+        colnames.append('rs_param_%s'%(li))
+        colnames.append('bc_param_%s'%(li))
+
+        out_data.append(rsi)
+        out_data.append(bci)
+
+    gmm6 = Table(data=out_data,names=colnames)
     return gmm6
 
 def gmmColorProb(color,pmem,param):
@@ -703,6 +747,12 @@ def getColorFractions(pred,pblue):
 
     return fred, fblue, N_red, N_blue
 
+def get_columns_selected(color_lis):
+    out = ['CID']
+    for li in color_lis:
+        out.append('rs_param_%s'%li)
+        out.append('bc_param_%s'%li)
+    return out
 # output_rs = getConfigFile()
 
 
@@ -713,8 +763,64 @@ def getColorFractions(pred,pblue):
 # file_gal = './data/Chinchilla-0Y1a_v1.6_truth_1000_highMass_ccopa_pz_005_Rfixed_members_stellarMass.fits'
 # file_cls = './data/Chinchilla-0Y1a_v1.6_truth_1000_highMass_ccopa_pz_005_Rfixed_stellarMass.fits'
 # output_rs = 'buzzard_color_model_rs_parameters.fits'
+def get_RS_flag(gal,gmm_parameters,color_list=['g-r'],nsigma=2):
+    zcls = gal['redshift']
+    new_pmem = np.zeros_like(gal['Pmem'])
+    z = gmm_parameters['redshift']
 
-def colorModel(file_cls,file_gal,output_rs=None):
+    for li in color_list:
+        color = gal[li]
+        mur = gmm_parameters['rs_param_%s'%(li)][:,0]
+        sigr = gmm_parameters['rs_param_%s'%(li)][:,1]
+
+        b = np.arange(0.08,0.92,0.03)
+        indices_list = list(chunks2(z, b))
+
+        y_bin = np.array([ np.nanmedian(mur[idx]) for idx in indices_list])
+        std_bin = np.array([(np.nanmedian(sigr[idx])**2+np.nanstd(mur[idx])**2)**(1/2) for idx in indices_list])
+        x_bin = np.array([ np.median(z[idx]) for idx in indices_list])
+
+        from scipy import interpolate
+        # cb_u = y_bin + nsigma*std_bin
+        # cb_upper = interpolate.interp1d(x_bin,cb_u,kind='cubic',fill_value='extrapolate')(zcls)
+        
+        # cb_l = y_bin - nsigma*std_bin
+        # cb_lower = interpolate.interp1d(x_bin,cb_l,kind='cubic',fill_value='extrapolate')(zcls)
+        cb_upper = mur+nsigma*sigr
+        cb_lower = mur-nsigma*sigr
+
+        indices = list(chunks(gal['CID'], gmm_parameters['CID']))
+        for i,idx in enumerate(indices):
+            new_pmem[idx] = np.where((color[idx]<=cb_upper[i])&(color[idx]>=cb_lower[i]),1.,0.)
+
+    return new_pmem
+
+def cut_colors_above_RS(gal,gmm_parameters,color_list=['g-r'],nsigma=2):
+    zcls = gal['redshift']
+    new_pmem = gal['Pmem']
+    z = gmm_parameters['redshift']
+
+    for li in color_list:
+        color = gal[li]
+        mur = gmm_parameters['rs_param_%s'%(li)][:,0]
+        sigr = gmm_parameters['rs_param_%s'%(li)][:,1]
+
+        b = np.arange(0.08,0.92,0.03)
+        indices_list = list(chunks2(z, b))
+
+        y_bin = np.array([ np.nanmedian(mur[idx]) for idx in indices_list])
+        std_bin = np.array([(np.nanmedian(sigr[idx])**2+np.nanstd(mur[idx])**2)**(1/2) for idx in indices_list])
+        x_bin = np.array([ np.median(z[idx]) for idx in indices_list])
+
+        from scipy import interpolate
+        cb_u = y_bin + nsigma*std_bin
+        cb_upper = interpolate.interp1d(x_bin,cb_u,kind='cubic',fill_value='extrapolate')(zcls)
+        
+        new_pmem = np.where(color>=cb_upper,0.,new_pmem)
+
+    return new_pmem
+
+def colorModel(file_cls,file_gal,output_rs=None,file_gmm=None,cutColorsAboveRS=False,tMembers=False):
     import logging
 
     cat = Table(getdata(file_cls))
@@ -725,10 +831,15 @@ def colorModel(file_cls,file_gal,output_rs=None):
     ngals = len(gal)
     
     ngals_cut = len(gal[cut2])
-    logging.info('there is ',round(100*((ngals-ngals_cut)/ngals),2),' percent of galaxies with bad stellar rest frame colors')
+    logging.debug('there is ',round(100*((ngals-ngals_cut)/ngals),2),' percent of galaxies with bad stellar rest frame colors')
 
-    # cut = (gal['mass']>=10)&(gal['True']==True)&(gal['gi_o']>0.05)#&(gal['Pmem']>0.7)
-    # gal = gal[cut]
+    if tMembers:
+        cut, = np.where(gal['True']==True)#&(gal['gi_o']>0.05)#&(gal['Pmem']>0.7)
+        gal = gal[cut]
+        gal['Pmem'] = 1.
+
+        file_cls = file_cls.split('.fits')[0]+'truth.fits'
+        file_gal = file_gal.split('.fits')[0]+'truth.fits'
 
     z_cls = cat['redshift']
     ids_cls = cat['CID']
@@ -736,7 +847,7 @@ def colorModel(file_cls,file_gal,output_rs=None):
     indicies_unique = list(chunks(ids_cls_gal,ids_cls))         ## per cluster
 
     ### defining color variables
-    color_list = ['gi_o','g-r','g-i','r-i','r-z','i-z']
+    color_list = ['gi_o','gr','gi','ri','rz','iz']
     ecolor_list = [ci+'_err' for ci in color_list]
 
     color_value = [(0,1),(0,2),(1,2),(1,3),(2,3)]
@@ -744,86 +855,53 @@ def colorModel(file_cls,file_gal,output_rs=None):
     gal = set_color_variables(gal,color_list[1:],ecolor_list[1:],color_value)
 
     print('Gaussian Mixture Modeling')
-    li='gi_o'
-    gmm_parameters = computeGMM(gal,z_cls,color_list,indicies_unique,lcolor=li)
+    gmm_parameters = computeGMM_AllColors(gal,z_cls,ids_cls,indicies_unique,color_list=color_list,filter=True)
     # plotArrayColor(gal,zb,indicies_unique,lcolor=li,xlims=(0.,1.2),gmm=gmm_parameters)
 
-    ## filtrando os dados
-    mur = gaussian_smooth(z_cls,gmm_parameters['mean'][:,0])
-    sigr = gaussian_smooth(z_cls,gmm_parameters['sigma'][:,0])
-    alpr = gaussian_smooth(z_cls,gmm_parameters['alpha'][:,0])
+    col_selected = get_columns_selected(color_list)
+    cat = join(cat,gmm_parameters[col_selected],keys='CID',join_type='outer')
 
-    mub = gaussian_smooth(z_cls,gmm_parameters['mean'][:,1])
-    sigb = gaussian_smooth(z_cls,gmm_parameters['sigma'][:,1])
-    alpb = gaussian_smooth(z_cls,gmm_parameters['alpha'][:,1])
-
-    rs_param = np.vstack(( z_cls, mur, sigr, alpr )).transpose()
-    bc_param = np.vstack(( z_cls, mub, sigb, alpb )).transpose()
-
-    gal,pred,pblue = computeColorProbabilties(gal,gmm_parameters,indicies_unique,lcolor=li)
-    _,pred_hard_cut,pblue_hard_cut = computeColorProbabilties(gal,gmm_parameters,indicies_unique,hard_cut=True,lcolor=li)
-
-    ### Quiescent and star-forming galaxies
-    star_forming = np.log10(gal['ssfr'])>=-10.5
-    quiescent = np.log10(gal['ssfr'])<=-10.
-
-    # p_quiescent = [gal['Pmem'][quiescent[idx]] for idx in indicies_unique]
-    # p_star_forming = [gal['Pmem'][star_forming[idx]] for idx in indicies_unique]
-
-    fred, fblue, N_red, N_blue = getColorFractions(pred,pblue)
-    fred_hard_cut, fblue_hard_cut, N_red_hard_cut, N_blue_hard_cut = getColorFractions(pred_hard_cut,pblue_hard_cut)
-    # fquiescent, f_star_forming, N_quiescent, N_star_forming = getColorFractions(p_quiescent,p_star_forming)
-
-    print('output catalogos')
-    # gal['starForming'] = star_forming
-
-    new_columns = ['Pred','Pblue','Pred_hc','Pblue_hc']
-    new_data = [pred,pblue,pred_hard_cut,pblue_hard_cut]
-
-    gal = initNewColumns(gal,new_columns,value=0.)
-
-    for ci,ndi in zip(new_columns,new_data):
-        i = 0
-        for idx in indicies_unique:
-            gal[ci][idx] = ndi[i]
-            i += 1
-
-    gal.write(file_gal,overwrite=True,format='fits')
-
-    # new_columns = ['Nred','Nblue','Nred_hc','Nblue_hc','Nstar_forming','Nquiescent']
-    # new_data = [N_red,N_blue,N_red_hard_cut, N_blue_hard_cut,N_star_forming,N_quiescent]
-
-    new_columns = ['Nred','Nblue','Nred_hc','Nblue_hc']
-    new_data = [N_red,N_blue,N_red_hard_cut, N_blue_hard_cut]
-
-    cat = initNewColumns(cat,new_columns,value=0.)
-
-    for ci,ndi in zip(new_columns,new_data):
-        cat[ci] = ndi
-
-    cat['rs_param'] = rs_param
-    cat['bc_param'] = bc_param
-    cat['color_conv'] = gmm_parameters['conv'][:]
-
-    cat.write(file_cls,format='fits',overwrite=True)
-
-    print('computing rs parameters')
     ## get red sequence(RS) parameters
     if output_rs is not None:
+        ncls_per_bin = 20
+        zb2, zb2_means = binsCounts(z_cls,ncls_per_bin)
+        # zb2 = np.arange(z_cls.min()-0.01,z_cls.max()+0.01,0.025)
+        # zb2_means = (zb2[1:]+zb2[:1])/2
+
+        ### group the table
+        indices_list2 = group_table_by(gal,zb2,colName='redshift')
+
         ## rs_parameters - astropy Table
         ## slope(6), intercept(6), mean_color, std_rs(6)
         ## 6 colors: gi_o, g-r, g-i, r-i, r-z, i-z
-
-        rs_parameters = computeRS(gal,mag_list,color_list,ecolor_list,indicies_unique)
-        rs_parameters['CID'] = ids_cls
-
-        cat = join(cat, rs_parameters, keys='CID', join_type='outer')
-
+        rs_parameters = computeRS(gal,mag_list,color_list,ecolor_list,indices_list2)
+        rs_parameters['redshift'] = zb2_means
+        
         ## take the mean in bins of 6 points
-        # rs_parameters = nbins_rs_parameters(rs_parameters,nbins=5)
+        rs_parameters = nbins_rs_parameters(cat['redshift'],rs_parameters,nbins=5)
+        rs_parameters['CID'] = cat['CID']
 
         # ## save red sequence model
-        cat.write(file_cls,format='fits',overwrite=True)
+        rs_parameters = join(rs_parameters,gmm_parameters[col_selected],keys='CID',join_type='outer')
+        rs_parameters.write('./out/rs_parameters.fits',format='fits',overwrite=True)
+
+    print('Cut colors above the rs')
+    if cutColorsAboveRS:
+        new_pmem = cut_colors_above_RS(gal,gmm_parameters,color_list=['gr'])
+        gal['Pmem_new'] = new_pmem
+
+    # print('Get RS galaxies')
+    rs_flag1 = get_RS_flag(gal,gmm_parameters,color_list=['gi'])
+    rs_flag2 = get_RS_flag(gal,gmm_parameters,color_list=['ri'])
+    gal['flag_rs_gi'] = rs_flag1
+    gal['flag_rs_ri'] = rs_flag2
+
+    print('output catalogos')
+    if file_gmm is not None:
+        gmm_parameters.write(file_gmm,format='fits',overwrite=True)
+
+    cat.write(file_cls,format='fits',overwrite=True)
+    gal.write(file_gal,format='fits',overwrite=True)
     
     pass
 
@@ -946,7 +1024,7 @@ def colorModel_per_bin(file_cls,file_gal,output_rs=None,ncls_per_bin=34):
         rs_parameters['redshift'] = zb2_means
 
         ## take the mean in bins of 6 points
-        rs_parameters = nbins_rs_parameters(rs_parameters,nbins=5)
+        rs_parameters = nbins_rs_parameters(zb2_means,rs_parameters,nbins=5)
 
         # ## save red sequence model
         rs_parameters.write(output_rs,format='fits',overwrite=True)
