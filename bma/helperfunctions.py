@@ -143,6 +143,18 @@ def readMaster_DES_SDSS_Cat(filename, a, b):
 
     return inputDataDict
 
+coefs = [[-1.28167900e-03, 9.78790967e-02,-2.11337322e+00, 1.12139087e+01],
+         [-3.12705403e-03, 1.96419803e-01,-3.80101934e+00, 2.04291313e+01],
+         [-6.75571431e-04, 4.87008215e-02,-8.51343916e-01, 1.08236535e+00],
+         [ 2.42978486e-03,-1.15899936e-01, 2.04088234e+00,-1.56178376e+01]]
+
+def get_mag_error(mag,i):
+    pk = coefs[i]
+    f = np.poly1d(pk)
+    logmerr= f(mag[:,i])
+    merr = 10**(logmerr)/2.
+    return np.where(merr>0.3,0.3,merr)
+
 ####
 def readCCOPA(filename, a, b):
     logging.debug('Starting helperFunctions.read_afterburner()')
@@ -150,25 +162,30 @@ def readCCOPA(filename, a, b):
     h=fits.open(filename)
     d=h[1].data
     d=d[a:b] # JCB: to divide and conquer
-    
+
     indice = np.arange(a,b,1,dtype=int)
 
     ids = d['GID'][:]
     haloid = d['CID'][:]
     zed = d['redshift'][:] # New afterburner
+    # zed = d['z_true'][:]   # true redshift
 
     g = d['mag'][:,0]
     gerr = d['magerr'][:,0]
-    
+    #gerr = get_mag_error(d['mag'],0)
+
     r = d['mag'][:,1]
     rerr = d['magerr'][:,1]
-    
+    # rerr = get_mag_error(d['mag'],1)
+
     i = d['mag'][:,2]
     ierr = d['magerr'][:,2]
-    
+    # ierr = get_mag_error(d['mag'],2)
+
     z = d['mag'][:,3]
+    # zerr = get_mag_error(d['mag'],3)
     zerr = d['magerr'][:,3]
-    
+
     #zed = d['Z_CLUSTER'] # Old afterburner
     grerr = (gerr**2+rerr**2)**0.5
     rierr = (rerr**2+ierr**2)**0.5

@@ -42,7 +42,7 @@ def doAll ( dir = "simha/", lib="basel") :
                             file = file + str(trunc) + "-" + str(tau) + str("%4.3f" % theta)
                             file = dir + file + ".mags"
 
-                            #print counter, file; counter += 1
+                            # print counter, file; counter += 1
 
                             logging.debug('metal: {m}; start: {s}; trunc: {trunc}; tau: {tau}; theta: {theta}'.format(
                                 m = metal, s = start, trunc = trunc, tau = tau, theta = theta))

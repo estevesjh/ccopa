@@ -209,7 +209,7 @@ def combineBMAStellarMassOutputCOPA(stellarMassOutPrefix,save=False):
     import logging
     logging.info('Starting combineCat.combineBMAStellarMassOutput()')
 
-    fileNames = sorted(glob.glob(stellarMassOutPrefix+'*'))
+    fileNames = sorted(glob.glob(stellarMassOutPrefix+'_'+('[0-9]' * 5)+'.fits'))
     # Call function and load all data sets
     data = loadfiles(fileNames) 
     outFile = stellarMassOutPrefix + 'full.fits'
@@ -265,7 +265,8 @@ def matchBMAStellarMassOutputCOPA(stellarMassInfile,stellarMassOutPrefix,save=Fa
     import logging
     logging.info('Starting combineCat.matchBMAStellarMassOutput()')
 
-    outfilename = os.path.splitext(stellarMassInfile)[0]+'_stellarMass.fits'
+    outfilename = stellarMassOutPrefix+'.fits'
+    print('out member files:',outfilename)
 
     BMAdata = combineBMAStellarMassOutputCOPA(stellarMassOutPrefix,save=save)    
     olddata = readfile(stellarMassInfile)

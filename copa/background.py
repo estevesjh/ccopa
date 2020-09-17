@@ -48,8 +48,8 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
         
         lista = np.append(lista,Nbkg)
 
-    nbkg0 = np.mean(lista[lista>0.5])
-    mad = np.std(lista[lista>0.5])
+    nbkg0 = np.mean(lista[lista>0.05])
+    mad = np.std(lista[lista>0.05])
 
     # print(lista)
     nl, nh = nbkg0-2*n_high*mad,nbkg0+n_high*mad
@@ -76,7 +76,7 @@ def calcNbkg(pz,theta,bkgMask,nslices=72,n_high=2.,method='pdf'):
     #         w, = np.where( (theta <= (ni+1)*(360/nslices)) & (theta >= (ni)*(360/nslices)) & bkgMask )
     #         idx_gal = np.append(idx_gal,w)
     
-    Nbkg = (nbkg0*nslices) ## mean number of galaxies in the region
+    Nbkg = (nbkg*nslices) ## mean number of galaxies in the region
     # Nbkg = np.sum(pz_bkg)
 
     return Nbkg, idx_gal
@@ -101,7 +101,7 @@ def getDensityBkg(all_gal,theta,r_aper,r_in=6,r_out=8,nslices=72,method='pdf'):
         nbkg, idx_gal = calcNbkg(pz,theta,bkgMask,nslices=nslices+24,n_high=3.)
         nbkg = (nbkg/area_bkg)
 
-    if np.count_nonzero(galMask) < 10: ## at least 10 galaxies
+    if np.count_nonzero(galMask) < 5: ## at least 10 galaxies
         nbkg = -1
 
     return nbkg, idx_gal
@@ -151,7 +151,7 @@ def computeDensityBkg(gals,cat,r_in=6,r_out=8,r_aper=1.,nslices=72,method='pdf')
         nbkg_j, bkgIndices = getDensityBkg(gal_magLim,thetaL,r_aper,r_in=r_in,r_out=r_out,nslices=nslices,method=method)
 
         ## Updating the background status
-        maskBkg[galIndicesL[bkgIndices]] = True
+        maskBkg[galIndices[bkgIndices]] = True
 
         if (nbkg_i<0.1) or (bkgIndices.size<20):
             print('nbkgi:',nbkg_i)
@@ -189,12 +189,14 @@ def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
             new_idx = np.arange(count0,count0+len(indices),1,dtype=int)
             ng, _ = calcNbkg(pz,theta,galMask, nslices=nslices,n_high=2.)
             # ng = np.sum(pz)
-
-            keys.append(new_idx)
-            ngals.append(ng/area)
-            galIndices.append(indices)
-
             count0 += len(indices)
+        
+            keys.append(new_idx)
+            ngals.append(np.abs(ng)/area)
+        else:
+            res = -1.
+            ngals.append(res)
+    galIndices.append(indices)
     
     return np.array(ngals), galsFlag, keys, galIndices
 

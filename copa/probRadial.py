@@ -16,9 +16,15 @@ from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM
 
+### local libraries
+import healpy as hp
+from projection_radec_to_xy import proj, inv_proj
+
 cosmo = FlatLambdaCDM(H0=70, Om0=0.283)
 Msol = 1.98847e33
 Mpc2cm = 3.086e+24
+rad2deg= 180/np.pi
+h=0.7
 
 #--- Critical universe density
 def rhoc(z):
@@ -124,23 +130,21 @@ def doRadialBin(radii,pz,rvec,testPz=False):
     r_mean = 0.5*(rvec[1:]+rvec[:-1])
     return ng_density, r_mean
 
-def calcR200(radii,pz,cls_id,z_cls,nbkg,rmax=3,testPz=True):
+def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None):
     w, = np.where(radii<=rmax)
     radii, pz = radii[w], pz[w]
 
-    new_way = False
-
-    if new_way:
-        # rvec,rbin = binsCounts(radii,20) ## 5 galaxies per bin
-        rvec,rbin = binsCountsWeighted(radii,pz,3)
-        # print("3 galaxies binning",rbin)
-
-    else:
-        rmin,step=0.1,0.1
-        rbin=np.r_[rmin:rmax:step,rmax]
+    rmin,step=0.1,0.1
+    rbin=np.r_[rmin:rmax:step,rmax]
 
     area = np.pi*rbin**2
     ngals_cls = np.array([np.sum(pz[radii<=ri]) for ri in rbin]) ## number of galaxies (<R) 
+    
+    if pixelmap is not None:
+        theta_list = (rbin/DA)*(180/np.pi)
+        maskfrac_profile = get_maskfrac_radial_profile(ra_c,dec_c,theta_list,pixelmap)
+    else:
+        maskfrac_profile = 1.#cat['MASKFRAC']
 
     ngals = ngals_cls-nbkg*area
     # ngals = ngals_cls-(nbkg*area)
@@ -152,7 +156,7 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,rmax=3,testPz=True):
 
     mass = hod_mass_z(ngals,z_cls,params) #calculate mass given ngals (see above functions)
 
-    volume = (4./3)*np.pi*rbin**3
+    volume = maskfrac_profile*(4./3)*np.pi*rbin**3
     mass_density=(mass)/volume
 
     # mass_density=np.where(mass_density<0.1,1e11,mass_density)
@@ -169,8 +173,8 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,rmax=3,testPz=True):
     radii_new=np.linspace(0.1,rmax,10000)
     ratio_new=f(radii_new)
     
-    if new_way:
-        ratio_new=gaussian_filter(ratio_new,sigma=1) ## avoid noise
+    # if new_way:
+    #     ratio_new=gaussian_filter(ratio_new,sigma=1) ## avoid noise
 
     w, = np.where((ratio_new>=X-dX)&(ratio_new<=X+dX))
     r200m=radii_new[w] #find possible r200s within acceptance range
@@ -190,14 +194,14 @@ def checkR200(r200,z_cls,M200=5e13):
     """ check if r200 is less than 0.5Mpc
         in the case of an error it computes R200 from the default Mass (M200)
     """
-    # minv = convertR200toM200(r200,z_cls)
-    # if minv<M200:
-    #     print('bad cluster')
-    #     r200 = convertM200toR200(M200,z_cls)
+    minv = convertR200toM200(r200,z_cls)
+    if minv<M200:
+        print('bad cluster')
+        r200 = convertM200toR200(M200,z_cls)
 
-    if r200<0.2:
-        r200 = 0.2
-        # r200 = 1.
+    # if r200<0.2:
+    #     r200 = 0.2
+    #     # r200 = 1.
     return r200
 
 ## PDF radial
@@ -238,7 +242,7 @@ def convertM200toR200(M200,z,nc=200):
     ## R200 in Mpc
     rho = rhoc(z)
     R200 = ( M200/(nc*4*np.pi*rho/3) )**(1/3.)
-    return R200
+    return R200/h
 
 def convertR200toM200(R200,z, nc=200):
     ## M200 in solar masses
@@ -247,8 +251,152 @@ def convertR200toM200(R200,z, nc=200):
     M200 = nc*4*np.pi*rho*R200**3/3
     return M200
 
+def get_pdfs_function(radii,zgal,pdfr,pdfz):
+    idx1 = np.argsort(radii)
+    idx2 = np.argsort(zgal)
+    
+    fr = interp1d(radii[idx1], pdfr[idx1], kind='linear', fill_value='extrapolate')
+    fz = interp1d(zgal[idx2], pdfz[idx2], kind='linear', fill_value='extrapolate')
+    
+    func = lambda r,z: fr(r)*fz(z)
+    return func
+###
+def pix_radec(pixeis,nside=4096,nest=False):
+    theta, phi = np.degrees(hp.pix2ang(nside=nside, ipix=pixeis, nest=nest))    
+    dec,ra = (90-theta), phi
+    return ra,dec
+
+def radec_pix(ra,dec,nside=4096, nest=False):
+    return np.array(hp.ang2pix(nside,np.radians(90-dec),np.radians(ra),nest=nest),dtype=np.int64)
+
+def get_healpix_radec(center_ra,center_dec,radius=1.,cushion=(10./3600.),nside=4096,nest=False):
+    center_ra_rad = np.radians(center_ra)
+    center_dec_rad = np.radians(center_dec)
+
+    center_vec = np.array([np.cos(center_dec_rad)*np.cos(center_ra_rad),
+                        np.cos(center_dec_rad)*np.sin(center_ra_rad),
+                        np.sin(center_dec_rad)])
+
+    healpix_list = hp.query_disc(nside, center_vec, np.radians(radius+cushion), nest=nest, inclusive=True, fact=8)
+    healpix_list = np.append(healpix_list,radec_pix(center_ra,center_dec, nside=nside, nest=nest))
+    
+    return np.unique(healpix_list)
+
+#### Projection Functions
+def doDistAngle(x,y):
+    dist = np.sqrt((x)**2+(y)**2)
+    return dist
+
+def delta_radec(ra,dec,ra0,dec0):
+    return proj(ra,dec,pos0=[ra0,dec0])
+
+def xy_to_radec(x,y,albers,Mpc2theta):
+    _ra,_dec = x*h/Mpc2theta, y*h/Mpc2theta ## deg
+    ra,dec = inv_proj(_ra,_dec,albers)
+    return ra,dec
+    
+def radec_to_xy(ra,dec,ra0,dec0,Mpc2theta):
+    dra,ddec,albers = delta_radec(ra,dec,ra0,dec0)    ## albers projection (delta RA, delta DEC)
+    x = dra *Mpc2theta/h
+    y = ddec*Mpc2theta/h
+    return x,y,albers
+
+#### Monte Carlo Mask Fraction
+def generate_random_points(rad,Npoints,zmax):
+    ## It makes a lattice
+    x_rnd = np.random.uniform(-rad,rad,Npoints)
+    y_rnd = np.random.uniform(-rad,rad,Npoints)
+    z_rnd = np.random.uniform(0.,zmax,Npoints)
+
+    ## It computes z and r
+    radius_rnd = doDistAngle(x_rnd,y_rnd)
+    
+    w,=np.where(radius_rnd<rad)
+    x_rnd,y_rnd,z_rnd = x_rnd[w],y_rnd[w],z_rnd[w]
+    radius_rnd = radius_rnd[w]
+    
+    return x_rnd,y_rnd,radius_rnd,z_rnd
+
+def generate_galaxy_distribution(pdfs,r200,ngals,zmax=1.5):
+    """It generates a list of member galaxies with Pmem distribution
+    input: ra,dec,radius[arcmin]
+    """
+    rad=r200          ##Mpc
+    R200=r200
+    Npoints=2000     ##initial points
+    
+    x_rnd,y_rnd,radius_rnd,z_rnd = generate_random_points(rad,Npoints,zmax)
+    
+    pmem_rnd = pdfs(radius_rnd,z_rnd)
+    pmem_rnd = np.where(pmem_rnd<0.,0.,pmem_rnd)
+    pmem_rnd_norm = pmem_rnd/sum(pmem_rnd)
+    
+    ## Draw the NFW model distribution
+    idx_rnd = np.arange(len(radius_rnd))
+    idx = np.random.choice(idx_rnd, size=ngals, p=pmem_rnd_norm)
+
+    x, y, pmem = x_rnd[idx], y_rnd[idx], pmem_rnd[idx]
+    return x,y,pmem
+
+def get_maskfrac_montecarlo(pixelmap,pdfs,r200,thetaMpc,albers,ngals=200):    
+    x,y,pmem = generate_galaxy_distribution(pdfs,r200,ngals,zmax=1.2)
+    ra,dec = xy_to_radec(x,y,albers,thetaMpc)
+    pixel_random_galaxies = radec_pix(ra,dec)
+    
+    maskfrac = 1.0*np.sum(pixelmap[pixel_random_galaxies])/pixel_random_galaxies.size
+    return maskfrac
+
+# def get_maskfrac(pixels, pixelmap):
+#     mathced_signal = pixelmap[pixels]
+#     maskfrac = 1.*np.sum(mathced_signal)/mathced_signal.size
+#     return maskfrac
+
+# def get_maskfrac_radial_aperture(ra_c,dec_c,theta,pixelmap):
+#     pixel_circle = get_healpix_radec(ra_c,dec_c,radius=theta)
+#     maskfrac = get_maskfrac(pixel_circle,pixelmap)
+#     return maskfrac
+
+# def get_maskfrac_radial_profile(ra_c,dec_c,theta_list,pixelmap):
+#     pixel_circle_list = [get_healpix_radec(ra_c,dec_c,radius=ra) for ra in theta_list]
+#     pixel_ring_list = [pixel_b[np.in1d(pixel_b,pixel_a,inverse=True)] for pixel_a, pixel_b in zip(pixel_circle_list[:-1],pixel_circle_list[1:])]
+#     mask_frac_radii = [get_maskfrac(pixel,pixelmap) for pixel in pixel_ring_list]
+    
+#     return np.array(mask_frac_radii)
+##
+
 ######################
-def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,testPz=True,compute=True):
+def computeMaskFraction(pixelmap, gal, cat, r200, pdfr, pdfz, rvec, zvec):
+    if (pixelmap is None):
+        if ('MASKFRAC' in cat.colnames):
+	        return np.array(cat['MASKFRAC'])
+	else:
+		return np.zeros_like(cat['RA'])
+    else:
+        print('pdfz size',len(pdfz))
+        maskfrac=[]
+        
+        for i in range(len(cat)):
+            cls_idx = cat['CID'][i]
+            ra_c,dec_c = cat['RA'][i], cat['DEC'][i]
+
+            R200 = r200[i]
+            DA = cat['DA'][i]
+            Mpc2theta= DA/rad2deg
+            
+            gidx, = np.where(gal['CID']==cls_idx)
+            if gidx.size>0:
+                rag,decg = gal['RA'][gidx],gal['DEC'][gidx]    
+                _, _, albers = radec_to_xy(rag,decg,ra_c,dec_c,Mpc2theta)
+            else:
+                _, _, albers = radec_to_xy(ra_c,ra_c,ra_c,dec_c,Mpc2theta)
+
+            fpdfs = get_pdfs_function(rvec,zvec,pdfr[i],pdfz[i])
+            maskfraci = get_maskfrac_montecarlo(pixelmap,fpdfs,R200,Mpc2theta,albers,ngals=2000)
+            
+            maskfrac.append(maskfraci)
+        return np.array(maskfrac)
+
+def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,pixelmap=None,compute=True):
     ## estimate R200
     ncls = len(cat)
     r200m = []
@@ -262,9 +410,12 @@ def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,testPz=True,compute=Tr
         # gal = gals[(gals['CID']==cls_id)&(gals['mag'][:,1]<=magLim_i)] ## r-band cut
         # gal = gals[(gals['CID']==cls_id)&(gals['amag'][:,1]<=-20.5)]
 
+        rac,dec = cat['RA'][idx], cat['DEC'][idx]
+        da = cat['DA'][idx]
+
         # if compute:
-        r200i = calcR200(gal['R'],(gal['PDFz']),cls_id,z_cls,nbkg[idx],rmax=rmax,testPz=testPz)
-        r200i = checkR200(r200i,z_cls,M200=defaultMass)
+        r200i = calcR200(gal['R'],(gal['PDFz']),cls_id,z_cls,nbkg[idx],rac,dec,da,rmax=rmax,pixelmap=pixelmap)
+        #r200i = checkR200(r200i,z_cls,M200=defaultMass)
 
         ## r500
         raperi = 1.*r200i
@@ -325,7 +476,7 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
     
     rmed = (rvec[1:]+rvec[:-1])/2
     rvec2=rvec+4
-    for idx,galIndices in enumerate(keys):
+    for idx in range(len(cat)):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2,ra = r200[idx], raper[idx]
 

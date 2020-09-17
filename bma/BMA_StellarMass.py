@@ -76,7 +76,7 @@ def createLog():
 def extractTarGz(tarFileName, path):
 	import tarfile
 	tar = tarfile.open(tarFileName, "r:gz")
-	tar.extractall(path=inputPath)
+	tar.extractall(path=path)
 	tar.close()
 
 
@@ -109,8 +109,10 @@ def getStellarMassOutPrefix():
 	return stellarMassOutPrefix
 
 def stellarMassOutFile():
-	stellarMassInfile = getConfig("Files","membersInputFile")
-	stellarMassOutFile = os.path.splitext(stellarMassInfile)[0]+'_stellarMass.fits'
+	# stellarMassInfile = getConfig("Files","membersInputFile")
+	stellarMassOutPrefix = getStellarMassOutPrefix()
+	stellarMassOutFile = stellarMassOutPrefix+'.fits'
+	#stellarMassOutFile = os.path.splitext(stellarMassInfile)[0]+'_stellarMass_members.fits'
 
 	if not stellarMassOutFile:
 		logging.critical("Can't continue without stellarMassOutPrefix defined! Exiting.")
@@ -170,7 +172,7 @@ def computeStellarMass(batch, memPerJob):
 	logging.debug('Starting computeStellarMass() with batch = {b}; job = {j}.'.format(
 		b = batch, j = job))
 
-	stellarMassOutFile = getConfig("Files","stellarMassOutPrefix") + "{:0>5d}.fits".format(job)
+	stellarMassOutFile = getConfig("Files","stellarMassOutPrefix") + "_{:0>5d}.fits".format(job)
 
 	inPath = getInputPath()
 	membersInFile = getConfig("Files","membersInputFile")
@@ -181,6 +183,7 @@ def computeStellarMass(batch, memPerJob):
 
 	inputDataDict = helperfunctions.readCCOPA(membersInFile, batch, batchIndex)
 
+	print('starting smass')
 	smass.calcCOPA(inputDataDict, outfile=stellarMassOutFile, indir=inPath, lib="miles")
 
 	logging.debug('Returning from computeStellarMass() with batch = {b}; job = {j}.'.format(
@@ -285,7 +288,7 @@ def main():
 		colorModelTime = time() - colorModelTime_t0
 		colorModelMsg = "Cluster Stellar Mass time: {}s".format(colorModelTime)
 		logging.info(colorModelMsg)
-
+		
 	# save total computing time
 	totalTime = time() - total_t0
 	totalTimeMsg = "Total time: {}s".format(totalTime)

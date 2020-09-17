@@ -155,7 +155,7 @@ def computeMagPDF(gals,cat,r200,nbkg,keys,mag_vec):
     galIDX = []
 
     kernels, kernels_cf, kernels_field = [], [], []
-    for idx,_ in enumerate(keys):
+    for idx in range(len(cat)):
         # cls_id,z_cls = cat['CID'][idx], cat['redshift'][idx]
         # r2, nb = r200[idx], nbkg[idx]
         # # n_cls_field, nb = ngals[idx], nbkg[idx]

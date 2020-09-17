@@ -17,7 +17,7 @@ def create_arg_parser():
 					help='Filename to the input cluster catalog.')
 	parser.add_argument('outputPrefix',
 					help='Prefix to the output catalog')
-	parser.add_argument('--truthTable',  nargs='?',
+	parser.add_argument('--truthTable',  nargs='?', type=str2bool,
 					const=True, default=False,
 					help='Activate mode to run for true members. Only possible for simulations!')
 	parser.add_argument('--pdfFile', default=None,
@@ -58,7 +58,7 @@ def setInputFile(section,item,value,userConfigFile='CCOPA_Config.ini'):
 
 header()
 
-copaConfigFile="./copa/copa_config.ini"
+copaConfigFile="./copa/copa_config_bz.ini"
 bmaConfigFile="./bma/BMA_StellarMass_Config.ini"
 
 arg_parser = create_arg_parser()
@@ -71,8 +71,12 @@ checkFiles(args)
 
 if args.truthTable:
 	args.outputPrefix += '_truth_table'
+	args.pdfFile += '_truth'
 	setInputFile('Operations','truthTable','True',userConfigFile=copaConfigFile)
 	setInputFile('Operations','truthTable','True',userConfigFile=bmaConfigFile)
+else:
+	setInputFile('Operations','truthTable','False',userConfigFile=copaConfigFile)
+	setInputFile('Operations','truthTable','False',userConfigFile=bmaConfigFile)
 
 ## set files name in the copa config file
 setInputFile('Files','clusterInputFile',args.clusterInputFile,userConfigFile=copaConfigFile)
@@ -82,12 +86,11 @@ setInputFile('Files','clusterOutFilePrefix',args.outputPrefix,userConfigFile=cop
 setInputFile('Files','galaxyOutFilePrefix',args.outputPrefix+'_members',userConfigFile=copaConfigFile)
 
 if args.pdfFile is not None:
-	setInputFile('Files','pdfOutfilePrefix',args.pdfFile+'_truth',userConfigFile=copaConfigFile)
-
+	setInputFile('Files','pdfOutfilePrefix',args.pdfFile,userConfigFile=copaConfigFile)
+	
 ## set files name in the BMA config file
 setInputFile('Files','membersinputfile',args.outputPrefix+'_members.fits',userConfigFile=bmaConfigFile)
 setInputFile('Files','clusterinputfile',args.outputPrefix+'.fits',userConfigFile=bmaConfigFile)
 
 setInputFile('Files','stellarmassoutprefix',args.outputPrefix+'_stellarMass_members_',userConfigFile=bmaConfigFile)
 setInputFile('Files','clusterstellarmassoutfile',args.outputPrefix+'_stellarMass.fits',userConfigFile=bmaConfigFile)
-

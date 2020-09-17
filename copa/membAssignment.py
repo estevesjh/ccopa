@@ -96,12 +96,14 @@ def initNewColumns(data,colNames,value=-1):
         data[col] = value*np.ones_like(data['CID'])
     return data
 
-def computeNorm(gals,cat,r200,nbkg):
+def computeNorm(gals,cat,r200,nbkg,maskfrac):
     norm = []
     norm_vec = []
+    area_vec = []
     for idx in range(len(cat)):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
+        fm = maskfrac[idx]
 
         print('cls_id',cls_id, 'at redshift', z_cls)
         # subGals = gals[galaxies2]
@@ -109,19 +111,22 @@ def computeNorm(gals,cat,r200,nbkg):
         galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)&(gals['R']<=r2))
         probz = gals["PDFz"][galaxies]
         
+        area = (1-fm)*(np.pi*r2**2)
+
         n_cls_field = np.nansum(probz)
-        n_gals = n_cls_field-nb*(np.pi*r2**2)
+        n_gals = n_cls_field-nb*area
 
         ni = n_gals#/(nb*(np.pi*r2**2))
         if ni<0:
             print('norm less than zero:',ni)
         
-        norm_vec_i = _computeNorm(gals[galaxies],r2,nb)
+        norm_vec_i = _computeNorm(gals[galaxies],r2,nb*(1-fm))
 
+        area_vec.append(area)
         norm.append(ni)
         norm_vec.append(norm_vec_i)
 
-    return np.array(norm), np.array(norm_vec)
+    return np.array(norm), np.array(norm_vec), np.array(area_vec)
 
 
 # def doProb(ngals,nbkg,norm,normed=True):
@@ -173,7 +178,7 @@ def _computeNorm(gal,r200,nbkg):
         norm = -1.*np.ones_like(Nbkg)
     return norm
 
-def computeProb(gal, keys, norm, nbkg):
+def computeProb(gal, keys, norm, nbkg, area_vec):
     gal = set_new_columns(gal,['Pmem','Pc','Pz','Pr'],val=0.)
     
     # pdfr, pdfz, pdfc, pdf = gal['pdfr'], gal['pdfz'], np.mean(gal['pdfc'],axis=1), gal['pdf']
@@ -183,8 +188,8 @@ def computeProb(gal, keys, norm, nbkg):
     pdfr_bkg, pdfz_bkg, pdfc_bkg, pdf_bkg = gal['pdfr_bkg'], gal['pdfz_bkg'], gal['pdfc_bkg'], gal['pdf_bkg']
 
     zcls = gal['redshift']
-    pdfc = np.where(zcls<0.35, gal['pdfc'][:,1], gal['pdfc'][:,2])
-    pdfc_bkg = np.where(zcls<0.35, gal['pdfc_bkg'][:,1], gal['pdfc_bkg'][:,2])
+    pdfc = np.where(zcls<0.35, gal['pdfc'][:,0], gal['pdfc'][:,2])
+    pdfc_bkg = np.where(zcls<0.35, gal['pdfc_bkg'][:,0], gal['pdfc_bkg'][:,2])
 
     # pdfc = np.product(pdfc,axis=1)
     # pdfc_bkg = np.product(pdfc_bkg,axis=1)
@@ -201,7 +206,8 @@ def computeProb(gal, keys, norm, nbkg):
         radii = gal['R'][idx]
         radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
         # area  = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
-        area = float( np.unique(np.pi*(gal['R200'][idx])**2)[0] )
+
+        area = area_vec[i]#float( np.unique(np.pi*(gal['R200'][idx])**2)[0] )
         Nb = nb*area
 
         pz0 = 1#probz[idx]
@@ -372,7 +378,7 @@ def getPDFz(membz,membzerr,zcls,sigma,method='pdf'):
         zz, yy = np.meshgrid(z,np.array(membz))
         zz, yy2 = np.meshgrid(z,np.array(membzerr))
         
-        if (zmin>0.001)&(zmax<=1.2):
+        if (zmin>0.001):
             pdfc = gaussian(zz,zcls,sigma)
             pdfz = gaussian(zz,yy,yy2)
         else:
@@ -390,7 +396,7 @@ def getPDFz(membz,membzerr,zcls,sigma,method='pdf'):
         pdf = integrate.trapz(pdf[:,w],x=zz[:,w])
         pdf = np.where(pdf>1., 1., pdf)
 
-        ## get out with galaxies outside 3 sigma
+        ## get out with galaxies outside 5 sigma
         zmin, zmax = (zcls-5*sigma), (zcls+5*sigma)
         if zmin<0: zmin=0.
         pdf = np.where((np.array(membz) < zmin )&(np.array(membz) > zmax), 0., pdf)
@@ -399,7 +405,7 @@ def getPDFz(membz,membzerr,zcls,sigma,method='pdf'):
         # pdf = pdf[:,w]#*0.01
 
         # pdf /= np.max(pdf)
-        # pdf = np.where(pdf>1,1.,pdf)
+        pdf = np.where(pdf>1,1.,pdf)
 
     return pdf
 
@@ -562,10 +568,11 @@ def getTruthPDFs(gal,cat,r200,indices,rvec,zvec,color_vec,mag_vec,c=3.53,bwz='si
 
     pdfr, pdfz, pdfc, pdfm = [], [], [], []
     results1, results2, results3,results4 = [],[],[],[]
-    for i,_ in enumerate(indices):
-        r2 = (r200[i]) #radii = ggal['R']
-        idx, = np.where((gal['CID']==cids[i])&(gal['True']==True)&(gal['Gal']==True)&(gal['R']<=r2))
-        
+    for i in range(len(cat)):
+        cls_id,z_cls = cat['CID'][i], cat['redshift'][i]
+        r2 = r200[i]
+        idx, = np.where( (gal['Gal']==True) &(gal['CID']==cls_id) & (gal["R"]<=gal['r_aper']) &(gal['True']==True) )
+            
         ggal = gal[idx]
         z = ggal['z']
         color = ggal['color'][:]
@@ -588,7 +595,7 @@ def getTruthPDFs(gal,cat,r200,indices,rvec,zvec,color_vec,mag_vec,c=3.53,bwz='si
     results4 = dask.compute(*results4, scheduler='processes', num_workers=2)
 
     ## append the result
-    for i,idx in enumerate(indices):
+    for i in range(len(cat)):
         pdfr.append(results1[i])
         pdfz.append(results2[i])
         pdfc.append(results3[i])
@@ -602,13 +609,16 @@ def get_pdf_radial(rmed,r200,c=3.53):
     return pdfRadial
 
 def computeKDE(x,xvec,bw=0.1,silvermanFraction=None):
-    if len(x)>1:
-        if silvermanFraction is None:
-            kernel = gaussianKDE.gaussian_kde(x,bw_method=bw)
-        else:
-            kernel = gaussianKDE.gaussian_kde(x,silvermanFraction=silvermanFraction)        
-    
-        kde = kernel(xvec)
+    if len(x)>2:
+        try:
+            if silvermanFraction is None:
+                kernel = gaussianKDE.gaussian_kde(x,bw_method=bw)
+            else:
+                kernel = gaussianKDE.gaussian_kde(x,silvermanFraction=silvermanFraction)        
+        
+            kde = kernel(xvec)
+        except:
+            kde = np.zeros_like(xvec)
     else:
         kde = np.zeros_like(xvec)
     return kde
@@ -646,7 +656,7 @@ def define_new_columns(gal,cat):
 
 ## -------------------------------
 ## main function
-def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfile=None,
+def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfile=None,pixelmap=None,
                 r_in=4, r_out=6, sigma_z=0.05, M200=1e14, p_low_lim=0.01, simulation=True, computeR200=False):
     ##############
     rmax = 1. #Mpc
@@ -654,13 +664,16 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     colorBW = [0.05,0.025,0.02]
     zBW = 'silverman'
     ##############
+    print('z window',round(sigma_z,3))
+
     ids, indices = np.unique(gal['GID','CID'], return_index=True)
     gal = gal[indices] ## getting away with repeated objects
     gal,cat,gidx,cidx = define_new_columns(gal,cat)
 
-    # print('estimate PDFz for each galaxy')
-    # pz,idxs = computePDFz(gal['z'],gal['zerr'],gal['CID'],cat,sigma_z,method=method)
-    # gal['PDFz'][idxs] = pz
+    print('estimate PDFz for each galaxy')
+    zerr = np.where(gal['zerr']>0.3,0.3,gal['zerr'])
+    pz,idxs = helper.computePDFz(gal['z'],zerr,gal['CID'],cat,sigma_z)
+    gal['PDFz'][idxs] = pz
 
     print('Computing Galaxy Density')
     ## Compute nbkg
@@ -672,7 +685,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     print('Computing R200')
     # r200, raper = radial.computeR200(gal, cat, nbkg, rmax=3, defaultMass=M200, compute=True) ## uncomment in the case to estimate a radius
     # print(cat.colnames)
-    r200 = cat['R200_true']*0.7
+    r200 = cat['R200_true']
     raper= 1.*r200
 
     # r200 = rmax*np.ones_like(cat['CID']) ## fixed aperture radii
@@ -688,14 +701,13 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
         Ngals_true = computeNgals(gal[galFlag],cat['CID'], raper,true_gals=True)
 
     ## get keys
-    good_indices, = np.where(nbkg>=0.)
-    
-    galFlag = (gal['dmag']<=0.)&(gal['R']<=gal['R200'])
-    # galFlag = (gal['mag'][:,1]<=cat['magLim'][keys_vec,0])&(gal['R']<=gal['R200'])
-    # galFlag = (gal['amag'][:,1]<=-20.5)&(gal['R']<=gal['R200']) ## Mr<=-19.5
+    good_indices0, = np.where(nbkg>=0.)
+    galFlag = (gal['R']<=gal['r_aper'])&(gal['dmag']<=0.)
 
-    ngals, _, keys, galIndices = backSub.computeGalaxyDensity(gal, cat[good_indices], r200[good_indices], nbkg[good_indices], nslices=72)
+    ngals, _, keys, galIndices = backSub.computeGalaxyDensity(gal, cat[good_indices0], raper[good_indices0], nbkg[good_indices0], nslices=72)
     gal['Gal'] = galFlag    ## all galaxies inside R200 within mag_i <mag_lim
+    good_indices, = np.where((nbkg[good_indices0]>=0.)&(ngals>=0.))
+    # r200 = r200[ngals>=0.]
 
     print('Computing PDFs \n')
     print('-> Radial Distribution')
@@ -710,6 +722,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     color_vec = np.arange(-1.,4.5,0.0025) ## vec for the pdfc_cls
     pdfc_list = probc.computeColorPDF(gal, cat[good_indices], r200[good_indices], nbkg[good_indices], galIndices, color_vec, bandwidth=colorBW,parallel=True)
 
+
     print('-> Mag Distribution')
     mag_vec = np.arange(-10.,0.,0.01) ## vec for the pdfc_cls
     pdfm_list = probm.computeMagPDF(gal, cat[good_indices], r200[good_indices], nbkg[good_indices], galIndices, mag_vec)
@@ -723,7 +736,11 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     var_list = [rmed,zvec,color_vec,mag_vec]
     pdf_list = [pdfr_list,pdfz_list,pdfc_list,pdfm_list]
 
-    norm, norm_vec = computeNorm(gal, cat[good_indices], raper[good_indices], nbkg[good_indices])
+    print('Compute MaskFraction and Norm')
+    maskFraction = radial.computeMaskFraction(pixelmap, gal, cat[good_indices], r200[good_indices], pdfr_list[0], pdfz_list[0], rmed, zvec)
+    if pixelmap is not None: del pixelmap
+    
+    norm, norm_vec, area_vec = computeNorm(gal, cat[good_indices], raper[good_indices], nbkg[good_indices], maskFraction)
 
     print('\n Compute Probabilities')
     gidx,cidx,_ = getIndices(gal['CID'],cat['CID'])
@@ -736,7 +753,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     # galIndices = list(chunks(galCut['CID'],cat['CID'][good_indices]))
     gidx,cidx,galIndices = getIndices(galCut['CID'],cat['CID'][good_indices])
     galCut = getPDFs(galCut,galIndices,var_list,pdf_list,nbkg[good_indices],mag_pdf=False)
-    galCut = computeProb(galCut, galIndices, norm, nbkg[good_indices])
+    galCut = computeProb(galCut, galIndices, norm, nbkg[good_indices], area_vec)
 
     print('Writing Output: Catalogs')
     if method=='old':
@@ -748,8 +765,9 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
               'PDFz','Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 'pdf', 'pdfr_bkg', 'pdfz_bkg', 'pdfc_bkg', 'pdfm_bkg', 'pdf_bkg']
     
     if simulation:
-        Colnames.append('Mr')
-        Colnames.append('amag')
+        # Colnames.append('Mr')
+        # Colnames.append('stellar_mass')
+        # Colnames.append('amag')
         Colnames.append('z_true')
         Colnames.append('True')
 
@@ -761,9 +779,9 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     print('Writing Cluster Output \n')
     ### writing cluster catalogs
     if simulation:
-        newColumns = ['R200','RAPER','Ngals','Norm','Nbkg','Ngals_true','Nbkg_true']
+        newColumns = ['R200','RAPER','Ngals','Norm','Nbkg','MASKFRAC','Ngals_true','Nbkg_true']
     else:    
-        newColumns = ['R200','RAPER','Ngals','Norm','Nbkg']
+        newColumns = ['R200','RAPER','Ngals','Norm','Nbkg','MASKFRAC']
     
     cat = initNewColumns(cat,newColumns,value=-1.)
     Ngals = computeNgals(galOut,cat['CID'][good_indices],r200[good_indices],true_gals=False,col='Pmem')
@@ -773,10 +791,15 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     cat['Nbkg'] = nbkg
     cat['Ngals'][good_indices] = Ngals
     cat['Norm'][good_indices] = norm
+    cat['MASKFRAC'][good_indices] = maskFraction
 
-    cat['NormVec'] = np.zeros((len(cat),norm_vec.shape[1]))
-    cat['NormVec'][good_indices,:] = norm_vec
-    
+    print('norm shape',norm_vec.shape)
+    if norm.size>0:
+        cat['NormVec'] = np.zeros((len(cat),norm_vec.shape[1]))
+        cat['NormVec'][good_indices,:] = norm_vec
+    else:
+        cat['NormVec'] = np.zeros((len(cat),3))
+        
     if simulation:
         #Ngals_true = computeNgals(galOut,cat['CID'],r200[good_indices],true_gals=True)
         cat['Nbkg_true'] = nbkg0

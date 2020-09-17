@@ -21,7 +21,7 @@ from joblib import Parallel, delayed
 
 file_path_script = __file__
 
-def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/copa_config_rm.ini"):
+def getConfig(section, item, boolean=False, getAllVariables=False, userConfigFile="./copa/copa_config_bz.ini"):
 
 	configFile = ConfigParser.ConfigParser()
 	configFile.read(userConfigFile)
@@ -94,6 +94,7 @@ def commonValues(values):
 	return commonValuesIndicies
 
 def getPmemCut(g0,plim):
+	pmem = gal['Pmem']
 	if 'True' in g0.colnames:
 		pmem = np.where(g0['True']==True, 1., pmem) ## don't trow the true members away !
 	mask = (pmem>=plim)
@@ -274,13 +275,10 @@ def writeFilesParallel(galAll,catAll,memberPrefix,clusterPrefix):
 	galAll.write(memberPrefix+fits, format='fits', overwrite=True)
 	catAll.write(clusterPrefix+fits, format='fits', overwrite=True)
 
-def getMembAssignmentFileList(nbatches):
+def getMembAssignmentFileList(cluster_infile, member_infile, nbatches):
 	
 	if not os.path.isdir('./ccopa_tmp_cat'):
 		os.makedirs('./ccopa_tmp_cat')
-
-	cluster_infile = getConfig("Files","clusterInputFile")
-	member_infile = getConfig("Files","galaxyInputFile")
 
 	# galaxyPrefix = './ccopa_tmp_cat/'+os.path.basename(member_infile)
 	# clusterPrefix = './ccopa_tmp_cat/'+os.path.basename(cluster_infile)
@@ -293,8 +291,8 @@ def getMembAssignmentFileList(nbatches):
 
 	return m_list, c_list
 
-def writeSmallFiles(cluster_cat,galaxy_cat,nbatches):
-	m_out, c_out = getMembAssignmentFileList(nbatches)
+def writeSmallFiles(cluster_infile,member_infile,cluster_cat,galaxy_cat,nbatches):
+	m_out, c_out = getMembAssignmentFileList(cluster_infile,member_infile,nbatches)
 
 	ncls = len(cluster_cat)
 	islice = np.linspace(0,ncls,nbatches+1,dtype=int)
@@ -334,6 +332,25 @@ def checkFiles(file_list):
 			count+=1
 	return count
 
+def get_pixel_map(badregion_file='./auxTable/y3a2_badregions_mask_v2.0.fits.gz'):
+	import healpy as hp
+	masking = isOperationSet(operation="masking")
+	masking_file = getConfig("Files","maskingInputFile")
+	
+	if masking:
+		print('Uploading masking files')
+		badregions = hp.read_map(badregion_file,dtype=np.int)
+		foreground = hp.read_map(masking_file,dtype=np.int)
+
+		pixelmap = np.where((foreground>=2)|(badregions==2),1,0)
+		# pixelmap = np.where(badregions==2,1,0)
+		print('Returning mask files')
+		
+	else:
+		pixelmap = None
+	
+	return pixelmap
+
 def getKwargs(m_out=None,c_out=None):
 	simulation = isOperationSet(operation="simulationTest")
 	computeR200 = isOperationSet(operation="computeR200")
@@ -348,12 +365,17 @@ def getKwargs(m_out=None,c_out=None):
 
 	outfilePDFs = getConfig("Files","pdfOutfileprefix")
 
-	kwargs = {"outfile_pdfs":outfilePDFs,"member_outfile":m_out,"cluster_outfile":c_out,"r_in":r_in,"r_out":r_out,'sigma_z':window,'M200':M200,"p_low_lim":plim,'simulation':simulation,'computeR200':computeR200}
+	pixelmap = get_pixel_map()
+
+	kwargs = {"outfile_pdfs":outfilePDFs,"member_outfile":m_out,"cluster_outfile":c_out,"r_in":r_in,"r_out":r_out,'sigma_z':window,'M200':M200,"p_low_lim":plim,'simulation':simulation,'computeR200':computeR200, 'pixelmap':pixelmap}
 	return kwargs
 
-def loadTable(kwargs):
-	galaxyInFile = getConfig("Files","galaxyInputFile")
-	clusterInFile = getConfig("Files","clusterInputFile")
+def loadTable(cluster_infile,galaxy_infile,kwargs,dataset=None):
+	# galaxyInFile = getConfig("Files","galaxyInputFile")
+	# clusterInFile = getConfig("Files","clusterInputFile")
+	
+	print('cls', cluster_infile)
+	print('gal', galaxy_infile)
 
 	simulation = kwargs['simulation']
 	rcut = round( float(getConfig('Cuts', "radius_cutouts")), 1)
@@ -363,30 +385,36 @@ def loadTable(kwargs):
 	zmax = round(float(getConfig('Cuts', "zmax_gal")),3)
 
 	columnsLabelsCluster = getClusterColsName(massProxy=True)
-	clusters = helper.readClusterCat(clusterInFile, colNames=columnsLabelsCluster, massProxy=True, simulation=simulation)
+	clusters = helper.readClusterCat(cluster_infile, colNames=columnsLabelsCluster, massProxy=True, simulation=simulation)
 
-	columnsLabelsGalaxies = getGalaxyColsName()
-	galaxies = helper.readGalaxyCat(galaxyInFile, clusters, colNames=columnsLabelsGalaxies, r_in=kwargs['r_in'], r_out=kwargs['r_out'], radius=rcut, window=window, zrange=(zmin,zmax), simulation=simulation)
+	if dataset=='cosmoDC2':
+		columnsLabelsGalaxies = getGalaxyColsName()
+		galaxies = helper.readCosmoDC2(galaxy_infile, clusters, colNames=columnsLabelsGalaxies, r_in=kwargs['r_in'], r_out=kwargs['r_out'], radius=rcut, window=window, zrange=(zmin,zmax), simulation=simulation)
+		
+	else:
+		columnsLabelsGalaxies = getGalaxyColsName()
+		galaxies = helper.readGalaxyCat(galaxy_infile, clusters, colNames=columnsLabelsGalaxies, r_in=kwargs['r_in'], r_out=kwargs['r_out'], radius=rcut, window=window, zrange=(zmin,zmax), simulation=simulation)
 
 	return galaxies, clusters
 
-def loadTables(kwargs,parallel=False,nbatches=20):
+def loadTables(cluster_infile,member_infile,kwargs,parallel=False,nbatches=20,dataset=None):
+
 	if parallel:
-		m_list, c_list = getMembAssignmentFileList(nbatches)
+		m_list, c_list = getMembAssignmentFileList(cluster_infile,member_infile,nbatches)
 		
-		n_members_missing = 1#checkFiles(m_list)
-		n_cluster_missing = 1#checkFiles(c_list)
+		n_members_missing = checkFiles(m_list)
+		n_cluster_missing = checkFiles(c_list)
 
 		if (n_members_missing>0) or (n_cluster_missing>0):
 			print('creating temporary files')
 
-			galaxies, clusters = loadTable(kwargs)
-			_, _ = writeSmallFiles(clusters,galaxies,nbatches)
+			galaxies, clusters = loadTable(cluster_infile,member_infile,kwargs,dataset=dataset)
+			_, _ = writeSmallFiles(cluster_infile,member_infile,clusters,galaxies,nbatches)
 
 		return m_list, c_list
 
 	else:
-		galaxies, clusters = loadTable(kwargs)
+		galaxies, clusters = loadTable(cluster_infile,member_infile,kwargs,dataset=dataset)
 		return galaxies, clusters
 
 def get_date_time():
@@ -470,6 +498,13 @@ def computeMembAssignment():
 
 	memberPrefix = getConfig("Files","galaxyOutFilePrefix")
 	clusterPrefix = getConfig("Files","clusterOutFilePrefix")
+	
+	cluster_infile = getConfig("Files","clusterInputFile")
+	member_infile = getConfig("Files","galaxyInputFile")
+
+	print('infile:',member_infile)
+	print('cinfile:',cluster_infile)
+	print()
 
 	kwargs = getKwargs()
 
@@ -477,7 +512,8 @@ def computeMembAssignment():
 		nbatches = int(getConfig("Parallel", "batches"))
 		nprocess = int(getConfig("Parallel", "process"))
 
-		m_list, c_list = loadTables(kwargs,parallel=True,nbatches=nbatches)
+		m_list, c_list = loadTables(cluster_infile,member_infile,kwargs,parallel=True,nbatches=nbatches)
+		# m_list, c_list = loadTables(cluster_infile,member_infile,kwargs,parallel=True,nbatches=nbatches,dataset='cosmoDC2')
 		pdf_list = [kwargs['outfile_pdfs']+'_%04i.hdf5'%(i+1) for i in range(nbatches)]
 
 		sleep(2)
@@ -489,16 +525,15 @@ def computeMembAssignment():
 
 	else:
 		kwargs["outfile_pdfs"] += '.hdf5'
-		galaxies, clusters = loadTables(kwargs,parallel=False)
+		galaxies, clusters = loadTables(cluster_infile,member_infile,kwargs,parallel=False)
 		g0, cat = membAssign.clusterCalc(galaxies,clusters,**kwargs)
 
 	## update Pmem, compute Ptaken and make a Pmem cut
 	galOut = computePmem(g0)
+	# galOut = getPmemCut(galOut,kwargs['p_low_lim'])
 
 	### update Ngals
 	catOut = computeNgals(galOut,cat)
-
-	# # galOut = getPmemCut(galOut,kwargs['p_low_lim'])
 
 	### saving output
 	writeFilesParallel(galOut,catOut,memberPrefix,clusterPrefix)

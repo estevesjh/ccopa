@@ -14,6 +14,9 @@ import numpy as np
 import logging
 import esutil
 from time import time
+import os
+import pandas as pd
+import dask
 
 import membAssignment as memb
 
@@ -89,13 +92,13 @@ def look_up_table_photozWindow(sigma,filename='./auxTable/pz_sigma_n_optimal.csv
     return nout
 
 def look_up_table_photoz_model(z,filename='./auxTable/photoz_cls_model_dnf_y3_gold_2_2.fits'):
-    data = Table.read(filename)
+    data = Table.read(filename,format='ascii')
     zmean, bias, sigma = data['z'][:], data['mean'], data['scatter'][:]
 
     biasz  = interp1d(zmean,bias,fill_value='extrapolate',copy=False)(z)
     sigmaz = interp1d(zmean,sigma,fill_value='extrapolate',copy=False)(z)
 
-    return biasz*(1+z),sigmaz*(1+z)
+    return biasz,sigmaz
 
 def gaussian(x,mu,sigma):
     return 1/(sigma*np.sqrt(2*np.pi))*np.exp(-(x-mu)**2/(2*sigma**2))
@@ -189,15 +192,15 @@ def getPDFz(membz,membzerr,zcls,sigma):
     
     pdf=pdfz
     w, = np.where( np.abs(z-zcls) <= 1.5*sigma) ## integrate in 1.5*sigma
-    pdf = integrate.trapz(pdf[:,w],x=zz[:,w])
-    pdf = np.where(pdf>1., 1., pdf)
+    p0 = integrate.trapz(pdf[:,w],x=zz[:,w])
+    p0 = np.where(p0>1., 1., p0)
 
     ## get out with galaxies outside 3 sigma
     zmin, zmax = (zcls-3*sigma), (zcls+3*sigma)
     if zmin<0: zmin=0.
-    pdf = np.where((np.array(membz) < zmin )&(np.array(membz) > zmax), 0., pdf)
+    p0 = np.where((np.array(membz) < zmin )&(np.array(membz) > zmax), 0., p0)
 
-    pdf = np.where((yy2>0.1)&(np.abs(yy)>0.1),0.,yy)
+    # p0 = np.where((yy2>0.2)&(np.abs(yy)>0.2),0.,yy)
     
     # w = np.argmin(np.abs(z-zcls))
     # pdf = pdf[:,w]#*0.01
@@ -205,15 +208,57 @@ def getPDFz(membz,membzerr,zcls,sigma):
     # pdf /= np.max(pdf)
     # pdf = np.where(pdf>1,1.,pdf)
 
-    return pdf
+    return p0
+
+zgrid2 = np.arange(0.,3.01,0.01)+0.005
+def _computePz0(pdfz,zcls,bias,sigma):
+    zz, _ = np.meshgrid(zgrid2,pdfz[0,:])
+    zz = zz.T
+
+    zoff = ((zgrid2-zcls)/(1+zcls)) - bias
+    w, = np.where( np.abs(zoff) <= 1.5*sigma )
+
+    pz0 = integrate.trapz(pdfz[w,:].T,x=zz[w,:].T)
+    pz0 = np.where(pz0>1., 1., pz0)
+
+    return pz0
+
+def computePz0(gidx,pdfz,cat,sigma):
+    ncls = len(cat)
+
+    indicies = np.empty((0),dtype=int)
+    pz = np.empty((0),dtype=float)
+    
+    if sigma < 0.:
+        print('Photoz Model: bias+sigma')
+        #bias, sigma = look_up_table_photoz_model(cat['redshift'],filename='auxTable/bpz_phtoz_model_cosmoDC2.csv')
+        bias, sigma = look_up_table_photoz_model(cat['redshift'],filename='auxTable/y3_dnf_photoz_model.csv')
+        
+    else:
+        sigma = sigma*(1+cat['redshift'])
+        bias  = np.zeros_like(cat['redshift'])
+
+    for i in range(ncls):
+        z_cls, cls_id = cat['redshift'][i], cat['CID'][i]
+        idx, = np.where(gidx==cls_id)
+        
+        if idx.size>0:
+            pdfi = pdfz[:,idx]
+            pz0 = _computePz0(pdfi,z_cls,bias[i],sigma[i])
+        
+            indicies = np.append(indicies,idx)
+            pz  = np.append(pz,pz0)
+    
+    return pz, indicies
 
 def computePDFz(z,zerr,cid,cat,sigma):
     ncls = len(cat)
     indicies = np.empty((0),dtype=int)
     pdfz = np.empty((0),dtype=float)
 
-    if sigma is None:
-        bias, sigma = look_up_table_photoz_model(cat['redshift'])
+    if sigma < 0.:
+        # bias, sigma = look_up_table_photoz_model(cat['redshift'],filename='auxTable/bpz_phtoz_model_cosmoDC2.csv')
+        bias, sigma = look_up_table_photoz_model(cat['redshift'],filename='auxTable/y3_dnf_photoz_model.csv')
     else:
         sigma = sigma*(1+cat['redshift'])
         bias  = np.zeros_like(cat['redshift'])
@@ -225,7 +270,7 @@ def computePDFz(z,zerr,cid,cat,sigma):
         idxSubGal, = np.where(cid==idx)
         
         # r1 = dask.delayed(getPDFz)(z[idxSubGal],zerr[idxSubGal],z_cls,sigma)
-        pdf = getPDFz(z[idxSubGal],zerr[idxSubGal],z_cls+bias[i],sigma[i])
+        pdf = getPDFz(z[idxSubGal],zerr[idxSubGal],z_cls+bias[i]*(1+z_cls),sigma[i]*(1+z_cls))
 
         # results.append(r1)
         indicies = np.append(indicies,idxSubGal)
@@ -236,7 +281,7 @@ def computePDFz(z,zerr,cid,cat,sigma):
     #     pdf = results[i]
     #     pdf = np.where(pdf<1e-4,0.,pdf) ## it avoids that float values gets boost by color pdfs
     #     pdfz  = np.append(pdfz,pdf)
-
+    
     return pdfz, indicies
 
 
@@ -440,7 +485,7 @@ def getMagLimModel_04L(auxfile,zvec,dm=0):
 
 #     return w
 
-def do_color_redshift_cut(zg1, mag, crazy=[-1,4.], zrange=[0.01,1.]):
+def do_color_redshift_cut(zg1, mag, crazy=[-0.5,4.], zrange=[0.01,1.]):
     # gcut, rcut, icut, zcut = 24.33, 24.08, 23.44, 22.69 ## Y1 SNR_10 mag cut
 
     gr = mag[:,0]-mag[:,1]
@@ -461,18 +506,18 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
     
     # data = Table(getdata(catInFile))
     if simulation:
-        colNames.append('R200')
-        colNames.append('M200')
+        colNames.append('r200')
+        colNames.append('m200')
 
     data = readFile(catInFile)
 
-    if idx is not None:
-        data=data[idx] # JCB: to divide and conquer
+    #if idx is not None:
+    #    data=data[idx] # JCB: to divide and conquer
 
     ## excluding objects in the edge
     if 'area_frac' in data.colnames:
         data = data[data['area_frac']==1]
-
+    print(data.colnames)
     id = np.array(data[colNames[0]],dtype=int)
     id, indices = np.unique(id, return_index=True)
 
@@ -497,24 +542,25 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
     auxfile = './auxTable/annis_mags_04_Lcut.txt'
     mag_model_riz = getMagLimModel_04L(auxfile,z,dm=0)
 
-    if massProxy:
-        mp = data[colNames[4]][indices]
-        r200 = data['R200'][indices]#/0.7
-        m200 = data['M200_crit'][indices]
-        clusterOut = Table([id, ra, dec, z, DA, mag_model_riz, r200, m200], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim', 'R200_true','M200_true'))
-        
-        # clusterOut = Table([id, ra, dec, z, DA, mp,r200, mag_model_riz], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'massProxy', 'R200_true', 'magLim'))
+    if not simulation:
+        mf = data[colNames[4]][indices]
+        r200 = data['R_LAMBDA'][indices]#/0.7
+        m200 = data[colNames[4]][indices]
+        # hpx = np.array(data['healpix_pixel'][indices])
+        # clusterOut = Table([id, ra, dec, z, DA, mag_model_riz, m200], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim','M200_true'))
+        clusterOut = Table([id, ra, dec, z, DA, mf, r200, mag_model_riz], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'massProxy', 'R200_true', 'magLim'))
 
     if simulation:
-        r200 = data['R200'][indices]
-        m200 = data['M200'][indices]
+        r200 = data['r200'][indices]
+        m200 = data[colNames[4]][indices]
+        #hpx = np.array(data['healpix_pixel'][indices])
+        #clusterOut = Table([id, ra, dec, z, DA, mag_model_riz, r200, m200, hpx], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim', 'R200_true','M200_true','hpx'))
         clusterOut = Table([id, ra, dec, z, DA, mag_model_riz, r200, m200], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim', 'R200_true','M200_true'))
-
+        
     # else:
     #     clusterOut = Table([id, ra, dec, z, DA, mag_model_riz], names=('CID', 'RA', 'DEC', 'redshift', 'DA', 'magLim'))
 
     logging.debug('Returning from helper.readClusterCat()')
-
     return clusterOut
 
 # def importTable(galaxyInFile,clusters,colNames,zrange=(0.01,1.),radius=12,window=0.1,rmax=3,r_in=6,r_out=8):
@@ -549,7 +595,7 @@ def readClusterCat(catInFile, colNames, idx=None, massProxy=False, simulation=Fa
 
 #     print('Cut data table')
 #     t0 = time()
-#     # cid = data['HALOID']
+#     # cid = data['halo_id']
 #     # idx, cid, radii, pdfz = cutGalaxyCatalog(ra[indices],dec[indices],z[indices],zerr[indices],clusters,rmax=rmax,r_in=r_in,r_out=r_out,
 #     #                         length=radius,window=window)
 #     idx, cidx, radii = cutCircle(ra[indices],dec[indices],clusters,rmax=radius)
@@ -580,19 +626,21 @@ def getVariables(galaxyData,colNames,zsigma=0.05,simulation=False):
 
     np.random.RandomState(seed=42)
     z = np.array(galaxyData[colNames[3]].copy())
-    zerr = np.array(galaxyData[colNames[10]])#zsigma*(1+z)
+    zerr = np.array(galaxyData[colNames[9]])#zsigma*(1+z)
 
-    if simulation:
-        zerr = zsigma*(1+z)
-        z_noise = z - np.random.normal(scale=zsigma*(1+z),size=len(z))
-        z_noise = np.where(z_noise<0.,0.,z_noise)
-    else:
-        z_noise = z
+    ## photz estimations
+    # z_noise = z
+
+    ## sinthetic photoz
+    z_noise = z - np.random.normal(scale=zsigma*(1+z),size=len(z))
+    z_noise = np.where(z_noise<0.,0.,z_noise)
+    zerr = zsigma*(1+z)
 
     mag, magerr = [], []
     for i in range(4):
         mag.append(galaxyData[colNames[4+i]])
-        magerr.append(galaxyData[colNames[10+i]])
+        magerr.append(np.zeros_like(z))
+        # magerr.append(galaxyData[colNames[9+i]])
     
     mag = np.array(mag).transpose() ## 4 vector
     magerr = np.array(magerr).transpose() ## 4 vector
@@ -623,8 +671,8 @@ def getRadii(galaxy,clusters,h=0.7,rmax=12,r_in=4,r_out=6,simulation=True):
     ## update true members
     if simulation:
         # galaxyData['True'] = np.where((galaxyData['HALOID']==cid)&(galaxyData['True']==True),True,False)
-        galaxyData['True'] = np.where((galaxyData['HALOID']==cid),True,False)
-        galaxyData.remove_column('HALOID')
+        galaxyData['True'] = np.where((galaxyData['halo_id']==cid),True,False)
+        galaxyData.remove_column('halo_id')
         
     return galaxyData
 
@@ -653,6 +701,114 @@ def do_galaxy_cuts(galaxy,clusters,zrange=[0.,1.3]):
 
     return galaxy2[indices_mag]
 
+def generate_sample(kde,nsample=10000):
+    return np.random.choice(zgrid2, nsample, p=kde/np.sum(kde))
+
+def conf68(pdfz):
+    v = np.percentile(pdfz, [16, 50, 84])
+    sigma68 = 0.5*(v[1]-v[0])
+    return v[0], sigma68
+
+def get_sigma68(pdfz,nsample=1000):
+    sample = generate_sample(pdfz,nsample=nsample)
+    median, s68 = conf68(sample)
+    return s68
+
+def get_sigma(pdfz,nsample=1000):
+    sample = generate_sample(pdfz,nsample=nsample)
+    sigma = np.std(sample)
+    return sigma
+
+def read_close_pdf(pi):
+    np.set_printoptions(precision=5, suppress=True)
+    x = pi.strip("[]")
+    b = x.split('\n')
+    b = ('         ').join(b)
+    array = np.fromstring(b, dtype = np.float,  sep ='         ' ,count=301)
+    return array
+
+def get_pdfz(pdfz_list):
+    # res = [dask.delayed(read_close_pdf)(pi) for pi in pdfz_list]
+    # pdfz = dask.compute(*res, scheduler='processes', num_workers=12)
+    pdfz = [read_close_pdf(pi) for pi in pdfz_list]
+    return np.vstack(pdfz).T
+
+def readCosmoDC2(galaxyInFile, clusters, h=0.7, rmax=3,r_in=8,r_out=10, radius=12, window=0.1, zrange=(0.01,1.),Nflag=0,colNames=None,simulation=False):
+    healpix_list = list(np.unique(clusters['hpx']))
+    galaxy_prefix = os.path.splitext(galaxyInFile)[0]
+
+    # infile_list = [galaxy_prefix+'_{:0>5d}.csv'.format(hpx) for hpx in healpix_list]
+    # infile_list = [infile for infile in infile_list if os.path.isfile(infile)]
+    
+    # res = [dask.delayed(_readCosmoDC2)(infile, clusters, h=0.7, rmax=rmax,r_in=r_in,r_out=r_out, radius=radius, window=window, zrange=zrange,colNames=colNames,simulation=simulation)
+    #         for infile in infile_list]
+    # data = dask.compute(*res, scheduler='processes', num_workers=32)
+
+    data = []
+    for hpx in healpix_list:
+        print('hpx:',hpx)
+        infile = galaxy_prefix+'_{:0>5d}b.csv'.format(hpx)
+        if os.path.isfile(infile):
+            gi = _readCosmoDC2(infile, clusters, h=0.7, rmax=rmax,r_in=r_in,r_out=r_out, radius=radius, window=window, zrange=zrange,colNames=colNames,simulation=simulation)
+            data.append(gi)
+    
+    galaxy = vstack(data)
+    return galaxy
+
+
+def _readCosmoDC2(galaxyInFile, clusters, h=0.7, rmax=3,r_in=8,r_out=10, radius=12, window=0.1, zrange=(0.01,1.),Nflag=0,colNames=None,simulation=False):
+    logging.debug('Starting helper.readGalaxyCat()')
+    
+    if colNames is None:
+        print('Please provide the Galaxy column names - exiting the code')
+        exit()
+
+    ## get the data
+    # galaxyData = Table(getdata(galaxyInFile))
+    df = pd.read_csv(galaxyInFile)
+    # pdfz = get_pdfz(df['photoz_pdf'][:])
+
+    del df['photoz_pdf']
+
+    galaxyData = Table.from_pandas(df)
+    
+    ## get variables
+    cid,gid,ra,dec,radii,z,z_noise,zerr,mag,magerr,PDFz,bkgFlag = getVariables(galaxyData,colNames,zsigma=window,simulation=simulation) 
+    
+    dmag = np.zeros_like(cid)
+    
+    ### cosmoDC2
+    cid = galaxyData['CID']
+    radii = galaxyData['R']
+    dmag = galaxyData['dmag']
+    smass= galaxyData['stellar_mass']
+
+    inputdata = [cid, gid, ra, dec, radii, z_noise, mag, dmag, zerr, magerr, PDFz, bkgFlag, smass]
+    Cnames = ['CID', 'GID', 'RA', 'DEC', 'R', 'z', 'mag', 'dmag', 'zerr', 'magerr', 'PDFz', 'Bkg', 'stellar_mass']
+
+    Cnames.append('halo_id'); Cnames.append('True'); Cnames.append('z_true'); Cnames.append('Mr');
+    inputdata.append(galaxyData['halo_id']); inputdata.append(galaxyData['TRUE_MEMBERS']); inputdata.append(z); inputdata.append(galaxyData['Mag_true_r_lsst_z0']);
+
+    galaxy = Table(inputdata,names=Cnames)
+
+    ### cosmoDC2
+    bkgGalaxies = (galaxy['R']>r_in)&(galaxy['R']<r_out)
+    galaxy['Bkg'] = bkgGalaxies
+    galaxy['True'] = np.where((galaxy['halo_id']==galaxy['CID']),True,False)
+
+    ## cut galaxies outside the maglim
+    idx, = np.where(galaxy['R']<=r_out)
+    # for i in idx:
+    #     galaxy['zerr'][i] = get_sigma68(pdfz[:,i],nsample=int(5e3))
+    
+    galaxy_cut = galaxy[idx]
+
+    # compute Pz0 from the galaxy pdf
+    # pz,idxs = computePz0(galaxy_cut['CID'],pdfz[:,idx],clusters,window)
+    # galaxy_cut['PDFz'][idxs] = pz
+
+    return galaxy_cut
+
 def readGalaxyCat(galaxyInFile, clusters, h=0.7, rmax=3,r_in=8,r_out=10, radius=12, window=0.1, zrange=(0.01,1.),Nflag=0,colNames=None,simulation=False):
     logging.debug('Starting helper.readGalaxyCat()')
     print('reading galaxy catalog')
@@ -663,17 +819,25 @@ def readGalaxyCat(galaxyInFile, clusters, h=0.7, rmax=3,r_in=8,r_out=10, radius=
 
     ## get the data
     galaxyData = Table(getdata(galaxyInFile))
-    galaxyData = galaxyData[galaxyData['FLAGS_GOLD']==0]
+    
+    if not simulation:
+        galaxyData = galaxyData[galaxyData['FLAGS_GOLD']==0]
 
     ## get variables
     cid,gid,ra,dec,radii,z,z_noise,zerr,mag,magerr,PDFz,bkgFlag = getVariables(galaxyData,colNames,zsigma=window,simulation=simulation) 
     
-    inputdata = [cid, gid, ra, dec, radii, z_noise, mag, zerr, magerr, PDFz, bkgFlag]
-    Cnames = ['CID', 'GID', 'RA', 'DEC', 'R', 'z', 'mag', 'zerr', 'magerr', 'PDFz', 'Bkg']
+    # Mr = galaxyData['Mr']
+    dmag = np.zeros_like(cid)
+    inputdata = [cid, gid, ra, dec, radii, z_noise, mag, dmag, zerr, magerr, PDFz, bkgFlag]
+    Cnames = ['CID', 'GID', 'RA', 'DEC', 'R', 'z', 'mag','dmag', 'zerr', 'magerr', 'PDFz', 'Bkg']
 
     if simulation:
-        Cnames.append('HALOID');Cnames.append('True');Cnames.append('amag'); Cnames.append('Mr');Cnames.append('z_true')
-        inputdata.append(galaxyData['HALOID']); inputdata.append(galaxyData['TRUE_MEMBERS']);inputdata.append(galaxyData['AMAG']);inputdata.append(galaxyData['Mr']);inputdata.append(z)
+        # Cnames.append('halo_id');Cnames.append('True');Cnames.append('amag'); Cnames.append('Mr');Cnames.append('z_true')
+        # inputdata.append(galaxyData['halo_id']); inputdata.append(galaxyData['TRUE_MEMBERS']);inputdata.append(galaxyData['AMAG']);inputdata.append(galaxyData['Mr']);inputdata.append(z)
+
+        Cnames.append('halo_id');Cnames.append('True');Cnames.append('z_true'); #Cnames.append('Mr');
+        #inputdata.append(galaxyData['halo_id']); inputdata.append(galaxyData['TRUE_MEMBERS']);inputdata.append(z);inputdata.append(galaxyData['Mag_true_r_lsst_z0']);
+        inputdata.append(galaxyData['halo_id']); inputdata.append(galaxyData['TRUE_MEMBERS']);inputdata.append(z);
 
     galaxy = Table(inputdata,names=Cnames)
 
@@ -686,14 +850,10 @@ def readGalaxyCat(galaxyInFile, clusters, h=0.7, rmax=3,r_in=8,r_out=10, radius=
     ## cut galaxies outside the maglim
     galaxy_maglim = galaxyCircles[galaxyCircles['dmag']<=0.]
     # galaxy_maglim = galaxyCircles[(galaxyCircles['Mr']-np.log10(h))<=-19.5]
-    
-    ## compute pdfz
-    if window==-1.:
-        window=None
 
-    zerr = np.where(galaxy_maglim['zerr']>0.3,0.3,galaxy_maglim['zerr'])
-    pz,idxs = computePDFz(galaxy_maglim['z'],zerr,galaxy_maglim['CID'],clusters,window)
-    galaxy_maglim['PDFz'][idxs] = pz
+    # zerr = np.where(galaxy_maglim['zerr']>0.3,0.3,galaxy_maglim['zerr'])
+    # pz,idxs = computePDFz(galaxy_maglim['z'],zerr,galaxy_maglim['CID'],clusters,window)
+    # galaxy_maglim['PDFz'][idxs] = pz
 
     # ids, indices = np.unique(galaxyCircles['GID','CID'], return_index=True)
     # galaxyCircles = galaxyCircles[indices]

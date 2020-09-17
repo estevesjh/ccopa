@@ -172,7 +172,7 @@ def doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[None,None],ban
     color2 = (mag2[:,i]-mag2[:,i2])
     color_bkg = (mag_bkg[:,i]-mag_bkg[:,i2])
 
-    if (color.size > 3)&(color_bkg.size >3):
+    if (color.size > 4)&(color_bkg.size > 4):
         k1_i, k1_cf_i, k1_i_bkg = backgroundSubtraction(mag[:,i2],mag_bkg[:,i2],color_vec,color,color_bkg,n_cls_field,nb,weight=weight,bandwidth=10)
         pdf_i = interpData(color_vec,k1_i,color2)
         pdf_i_bkg = interpData(color_vec,k1_i_bkg,color2)
@@ -183,7 +183,7 @@ def doKDEColors(color_vec,mag2,mag,mag_bkg,n_cls_field,nb,weight=[None,None],ban
         
     return k1_i, k1_cf_i, k1_i_bkg, pdf_i, pdf_i_bkg
 
-def computeColorPDF(gals,cat,r200,nbkg,keys,color_vec,bandwidth=[0.008,0.001,0.001],parallel=False):
+def computeColorPDF(gals,cat,r200,nbkg,keys,color_vec,bandwidth=[0.008,0.001,0.001],parallel=True):
     ''' compute probability distribution function for the 5 sequential colors 
         0:(g-r); 1:(g-i); 2:(r-i); 3:(r-z); 4:(i-z)
     '''
@@ -198,7 +198,7 @@ def computeColorPDF(gals,cat,r200,nbkg,keys,color_vec,bandwidth=[0.008,0.001,0.0
     galIDX = []
 
     kernels, kernels_cf, kernels_field = [], [], []
-    for idx,_ in enumerate(keys):
+    for idx in range(len(cat)):
         cls_id,z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
         # n_cls_field, nb = ngals[idx], nbkg[idx]

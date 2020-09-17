@@ -75,10 +75,13 @@ def redshiftDistribuitionSubtraction(z,z_gal,z_bkg,nb,ncf,prior=[None,None],bw=0
     # z_bkg = (z_bkg-u)/s
     values = z#(z-u)/s
 
-    kernel = kde.gaussian_kde(z_gal,silvermanFraction=1,weights=prior[0])
+    try:
+        kernel = kde.gaussian_kde(z_gal,silvermanFraction=1,weights=prior[0])
+        pdf_cf = kernel(values)
+    except:
+        pdf_cf = np.ones_like(values)
+
     kernel_bkg = kde.gaussian_kde(z_bkg,silvermanFraction=1,weights=prior[1])
-    
-    pdf_cf = kernel(values)
     pdf_bkg = kernel_bkg(values)
 
     nc = (ncf-nb)
@@ -100,7 +103,7 @@ def redshiftDistribuitionSubtraction(z,z_gal,z_bkg,nb,ncf,prior=[None,None],bw=0
 
     # pdfz = np.where(pdfz<0.01,0.,pdfz)
     
-    zbw = kernel.silverman_factor()/2
+    zbw = 0.01#kernel.silverman_factor()/2
     return  pdfz, pdf_cf, pdf_bkg, zbw
 
 def truncatedGaussian(z,zcls,zmin,zmax,sigma,vec=False):
@@ -134,6 +137,7 @@ def getModel(zvec,zcls,sigma):
     else:
         pdf = gaussian(zvec,zcls,sigma*(1+zcls))
 
+    pdf = np.where(np.abs(zvec-zcls)/(1.+zcls)>=2.*sigma,0,pdf)
     return pdf 
     
 def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bandwidth=0.008,zvec=np.arange(0.,1.,0.005)):
@@ -143,12 +147,14 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bandwidth=0.008,zvec=np.ara
     pdf_field = []
     
     if sigma==-1:
-        bias, sigma = hp.look_up_table_photoz_model(cat['redshift'])
+        # bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename='auxTable/bpz_phtoz_model_cosmoDC2.csv')
+        bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename='auxTable/y3_dnf_photoz_model.csv')
+
     else:
         sigma = sigma*(1+cat['redshift'])
         bias  = np.zeros_like(cat['redshift'])
         
-    for idx,_ in enumerate(keys):
+    for idx in range(len(cat)):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
         # n_cls_field, nb = ngals[idx], nbkg[idx]
@@ -170,14 +176,13 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bandwidth=0.008,zvec=np.ara
         
         # zvec = zshift(zvec,z_cls)
         dz = np.diff(zvec)[0]
-        if len(z_gal)>1:
+        if len(z_gal)>2:
             k_i, k_cf_i, k_i_bkg, dz = redshiftDistribuitionSubtraction(zvec, z_gal, z_bkg, nb, n_cls_field, bw=bandwidth)
             # pdf_i, pdf_i_bkg = redshiftDistribuitionSubtraction(z_gal2, z_gal, z_bkg, nb, n_cls_field, bw='silverman',prior=[probz,probz_bkg])
 
-            k_i = getModel(zvec,z_cls+bias[idx],sigma[idx])
-
         else:
             k_i = k_i_bkg = k_cf_i = np.ones_like(zvec)
+
             # pdf_i = pdf_i_bkg = np.ones_like(z_gal)
 
         # pdf = np.append(pdf,pdf_i)
@@ -185,6 +190,7 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bandwidth=0.008,zvec=np.ara
 
         # normi, normi_f = np.sum(dz*k_i*probz), np.sum(dz*k_i_bkg*probz_bkg)
 
+        k_i = getModel(zvec,z_cls+bias[idx]*(1+z_cls),sigma[idx]*(1+z_cls))
         dz=1.
         pdf_cls.append(dz*k_i)
         pdf_cf.append(dz*k_cf_i)
