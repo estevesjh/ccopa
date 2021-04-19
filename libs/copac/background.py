@@ -136,9 +136,9 @@ def remove_outliers(lista,no_cuts=False,ncut=2.):
     lista2 = lista[sectors0]
     
     nbkg0 = np.median(lista[cond])
-    #nbkg  = np.median(lista2)
+    nbkg  = np.median(lista2)
     print('nl and nh: %.2f , %.2f'%(10**nl,10**nh))
-    return 10**nbkg0,sectors0
+    return 10**nbkg,sectors0
 
 
 def calcTheta(ra,dec,ra_c,dec_c):

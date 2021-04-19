@@ -116,8 +116,13 @@ def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight
     color_bkg = (color_bkg-u)/s
     values = (color_vec-u)/s
 
-    kernel = computeColorKDE(color,weight=probz,silvermanFraction=10)
-    kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,silvermanFraction=10)
+    try:
+        kernel = computeColorKDE(color,weight=probz,silvermanFraction=10)
+        kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,silvermanFraction=10)
+    except:
+        print('Color Error')
+        kernel = computeColorKDE(color,silvermanFraction=10)
+        kernel_bkg = computeColorKDE(color_bkg,silvermanFraction=10)
 
     nc = (ncls-nbkg)
     if nc<0: nbkg = ncls = nc = 1

@@ -119,7 +119,7 @@ class copacabana:
     def run_copa(self,run_name,pz_file=None,nCores=20,old_code=False):
         print('\nStarting Copa')
         print('run %s'%run_name)
-        blockPrint()
+        #blockPrint()
         galaxies, clusters= load_copa_input_catalog(self.master_fname,self.kwargs,pz_file=pz_file,simulation=self.simulation)
         galaxies.write(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name,format='fits',overwrite=True)
         clusters.write(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name,format='fits',overwrite=True)
@@ -139,7 +139,8 @@ class copacabana:
 
         t0 = time()
         if not old_code:
-            cat, g0 = self.copa_trigger(run_name,gal_list,cluster_list,nCores=nCores)        
+            cat, g0 = self.copa_trigger(run_name,gal_list,cluster_list,nCores=nCores)
+
             ## compute Ptaken
             galOut = compute_ptaken(g0)
 
@@ -147,10 +148,14 @@ class copacabana:
             catOut = computeNgals(galOut,cat)
         else:
             catOut, galOut = self.old_memb_trigger(run_name,gal_list,cluster_list,nCores=nCores)
-        enablePrint()
+        #enablePrint()
 
         ### saving output
-        write_copa_output(self.master_fname,galOut,catOut,run_name,overwrite=True)
+        try:
+            write_copa_output(self.master_fname,galOut,catOut,run_name,overwrite=False)
+        except:
+            galOut.write(self.temp_file_dir+'/%s_copa_output_gal.fits'%run_name,format='fits',overwrite=True)
+            catOut.write(self.temp_file_dir+'/%s_copa_output_cls.fits'%run_name,format='fits',overwrite=True)
 
         # save total computing time
         totalTime = time() - t0

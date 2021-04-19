@@ -13,7 +13,7 @@ copa = copacabana(cfg)
 
 #copa.kwargs['z_window'] = 0.05
 
-run = 'emuBPZ-rhod-zw'
+run = 'emuBPZ-rhod-zw-dmag1'
 
 copa.run_copa(run, pz_file='emuBPZ_zw', nCores=60, old_code=False)
 copa.compute_muStar(run, overwrite=True, true_members=False)

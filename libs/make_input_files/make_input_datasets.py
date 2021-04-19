@@ -436,7 +436,9 @@ def delete_group(fname,path):
     try:
         group   = fmaster[path]
     except:
+        fmaster.close()
         return
+
     cols = group.keys()
     if len(cols)>0:
         for col in cols: del group[col]
