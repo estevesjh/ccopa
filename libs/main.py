@@ -120,12 +120,12 @@ class copacabana:
         print('\nStarting Copa')
         print('run %s'%run_name)
         blockPrint()
-        # galaxies, clusters= load_copa_input_catalog(self.master_fname,self.kwargs,pz_file=pz_file,simulation=self.simulation)
-        # galaxies.write(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name,format='fits',overwrite=True)
-        # clusters.write(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name,format='fits',overwrite=True)
+        galaxies, clusters= load_copa_input_catalog(self.master_fname,self.kwargs,pz_file=pz_file,simulation=self.simulation)
+        galaxies.write(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name,format='fits',overwrite=True)
+        clusters.write(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name,format='fits',overwrite=True)
 
-        galaxies = Table(getdata(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name))
-        clusters = Table(getdata(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name))
+        # galaxies = Table(getdata(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name))
+        # clusters = Table(getdata(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name))
 
         self.nclusters = len(clusters)
         self.ngalaxies = len(galaxies)

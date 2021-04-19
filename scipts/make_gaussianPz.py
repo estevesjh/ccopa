@@ -19,7 +19,8 @@ def main_bpz():
     infile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5' ## laod infile
     zw_file= '/home/s1/jesteves/copa_v2.1/libs/scripts/zwindow_cosmoDC2_bpz.txt'
 
-    cfg = '../config_copa_dc2.yaml'
+    root= '/home/s1/jesteves/git/ccopa/'
+    cfg = root+'libs/config_copa_dc2.yaml'
     copa = copacabana(cfg)
 
     cinfile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/cosmoDC2_v1.1.4_2000_GC.fits'
@@ -73,7 +74,7 @@ def main():
     t0     = time()
     ## Gaussian set up
     infile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5' ## laod infile
-    zw_file= '/home/s1/jesteves/copa_v2.1/libs/scripts/zwindow_cosmoDC2_emuBPZ.txt'
+    zw_file= '/home/s1/jesteves/git/ccopa/aux_files/zwindow_model_emuBPZ.txt'
 
     zsigma   = 0.03
     parallel = True
@@ -87,7 +88,7 @@ def main():
     if not emulator:
         new_group = get_name_string(zsigma) ## e.g. gauss005
     else:
-        new_group = 'emuBPZ'
+        new_group = 'emuBPZ_zww'
     
     print('Load Infile \n')
     hf     = h5py.File(infile,'a')
@@ -168,12 +169,12 @@ class make_gaussian_photoz:
         zoffset = (znoise-zcls)/(1+zcls)
 
         ## make corrections
-        # zres    = np.genfromtxt(zwindow_file,delimiter=',')
-        # zb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
-        # zwindow = np.interp(zcls,zb,sigma) ##np.interp(zcls,zb,sigma)
-        # zoffset = zoffset-np.interp(zcls,zb,mean)
+        zres    = np.genfromtxt(zwindow_file,delimiter=',')
+        zb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
+        zwindow = np.interp(zcls,zb,sigma) ##np.interp(zcls,zb,sigma)
+        zoffset = zoffset#-np.interp(zcls,zb,mean)
 
-        zwindow = zwindow*np.ones_like(zcls)
+        # zwindow = zwindow*np.ones_like(zcls)
         print('Compute pz,0')
         ## parelizar
         if parallel:
