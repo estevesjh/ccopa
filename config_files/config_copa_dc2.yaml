@@ -1,0 +1,48 @@
+# cosmoDC2 imput files
+
+## copacabana master files
+members_infile   : /data/des61.a/data/johnny/CosmoDC2/sample2021/cosmoDC2_v1.1.4_{:05d}.hdf5
+cluster_infile   : /data/des61.a/data/johnny/CosmoDC2/sample2021/cosmoDC2_v1.1.4_2000_GC.fits
+master_outfile   : /data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5
+columns_yaml_file: /home/s1/jesteves/copa_v2.1/aux_files/cosmodc2_columns.yaml
+pixelmap_file    : 
+## /home/s1/jesteves/copa_v2.1/datasets/cosmoDC2_v1.1.4_copa-v2.1_dev_small.hdf5
+## /data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/temp_file/
+## /data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5
+
+######## copa setup #######
+zmin_gal: 0.
+zmax_gal: 1.5
+dz_max  : 0.3
+
+## radial cuts
+rmax : 3.
+r_in : 4.
+r_out: 6.
+
+## relative mag cut
+dmag_lim: 1
+
+## cluster aperture radii, it can be a number in Mpc, the hod model or r200 (simulation)
+r_aper_model : hod
+r_aper_value : 
+
+## parallel process
+copa_number_of_chunks: 100
+
+## Photo-z setup
+# 1st model: a gaussian distribution centered on zcls with a std of z_window
+# 2nd model: a gaussian distribution centered on zcls+bias with a std dependeding on redshift
+# 2nd model is a text file with: z, bias, std
+z_window     : -1
+z_model_file : /home/s1/jesteves/git/ccopa/aux_files/zwindow_cosmoDC2_emuBPZ.txt
+# '/home/s1/jesteves/git/ccopa/aux_files/zwindow_model_emuBPZ.txt'
+# /data/des30.a/data/bwelch/redmapper_y1a1/bpz_median_z_sigma.txt
+#/home/s1/jesteves/copa_v2.1/libs/scripts/zwindow_cosmoDC2_{}.txt
+
+######## bma setup #######
+## paralell
+bma_number_of_chunks: 500
+
+## stellar population libray file
+lib_inPath: /data/des61.a/data/pbarchi/galaxyClusters/simha_miles_Nov2016/
