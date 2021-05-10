@@ -1,0 +1,67 @@
+##### Buzzard v2.0 imput files
+## copacabana master files
+members_infile   : /data/des61.a/data/johnny/Buzzard/Buzzard_v2.0.0/input/buzzard_v2.0.0_{:05d}.hdf5
+cluster_infile   : /data/des61.a/data/johnny/Buzzard/Buzzard_v2.0.0/output/buzzard_v2.0.0_small_halos.fits
+master_outfile   : /data/des61.a/data/johnny/Buzzard/Buzzard_v2.0.0/output/buzzard_v2.0.0_copa_small.hdf5
+columns_yaml_file: /home/s1/jesteves/git/ccopa/config_files/buzzard_v2_grc_columns.yaml
+pixelmap_file    : # copa.run_copa(run, pz_file='emuBPZ_zww', nCores=60, old_code=False)
+
+
+######## copa setup #######
+zmin_gal: 0.
+zmax_gal: 1.5
+dz_max  : 0.3
+
+## radial cuts
+rmax : 3.
+r_in : 4.
+r_out: 6.
+
+## relative mag cut
+mag_model_file: /home/s1/jesteves/git/ccopa/aux_files/annis_mags_04_Lcut.txt
+dmag_lim: 1
+
+## cluster aperture radii, it can be a number in Mpc, the hod model or r200 (simulation)
+r_aper_model : hod
+r_aper_value : 
+
+## parallel process
+copa_number_of_chunks: 100
+
+## Photo-z setup
+# 1st model: a gaussian distribution centered on zcls with a std of z_window
+# 2nd model: a gaussian distribution centered on zcls+bias with a std dependeding on redshift
+# 2nd model is a text file with: z, bias, std
+z_window     : -1
+z_model_file : /home/s1/jesteves/git/ccopa/aux_files/zwindow_cosmoDC2_emuBPZ.txt
+
+## Healpixel config
+healpixel_setup : True
+healpixel_list  : [  0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12]
+
+## for the whole sample use the pixel list below
+# pixel_list  : [  0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,
+#                 13,  14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,
+#                 26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  36,  37,  38,
+#                 39,  40,  41,  42,  43,  44,  45,  46,  47,  48,  49,  50,  51,
+#                 52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,  64,
+#                 65,  66,  67,  68,  69,  70,  71,  72,  73,  74,  75,  76,  77,
+#                 78,  79,  80,  81,  82,  83,  84,  85,  86,  87,  88,  89,  90,
+#                 91,  92,  93,  94,  95,  96,  97,  98,  99, 100, 101, 102, 103,
+#                104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116,
+#                117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 277, 278,
+#                279, 281, 282, 283, 284, 285, 286, 287, 304, 305, 307, 308, 309,
+#                310, 311, 316, 317, 319, 341, 342, 343, 345, 346, 347, 348, 349,
+#                350, 351, 357, 358, 359, 361, 362, 363, 364, 365, 366, 367, 368,
+#                369, 370, 371, 372, 373, 374, 375, 376, 377, 378, 379, 380, 381,
+#                382, 383, 421, 422, 423, 425, 426, 427, 428, 429, 430, 431, 432,
+#                434, 435, 440, 441, 442, 443, 444, 446, 447]
+
+
+######## bma setup #######
+## paralell
+bma_number_of_chunks: 500
+
+## stellar population libray file
+lib_inPath: /data/des61.a/data/pbarchi/galaxyClusters/simha_miles_Nov2016/
+

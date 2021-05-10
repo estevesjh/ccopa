@@ -13,13 +13,14 @@ from joblib import Parallel, delayed
 # local libraries
 from make_input_files.make_input_datasets import *
 from make_input_files.upload_cosmoDC2 import upload_cosmoDC2_hf5_files
+from make_input_files.pre_processing_copa import preProcessing
 
 import bma.smass as smass
 from bma.cluster_smass import compute_mu_star, compute_mu_star_true
 
 from copac.membAssignment import clusterCalc, compute_ptaken, compute_ngals
 
-from scripts.afterburner import old_memb
+from old_memb.afterburner import old_memb
 
 h=0.7
 
@@ -32,7 +33,7 @@ class copacabana:
         self.cfile        = self.kwargs['cluster_infile']
         self.master_fname = self.kwargs['master_outfile']
         self.yaml_file    = self.kwargs['columns_yaml_file']
-        self.dataset   = dataset
+        self.dataset      = dataset
         
         self.simulation = simulation
         self.header     = None#get_header(dataset)#'./data/annis_mags_04_Lcut.txt'
@@ -40,8 +41,45 @@ class copacabana:
         self.out_dir       = os.path.dirname(self.master_fname)
         self.temp_file_dir = check_dir(os.path.join(self.out_dir,'temp_file'))
         self.pdf_file_dir  = check_dir(os.path.join(self.out_dir, 'pdfs'))
+
+        self.healpix = self.kwargs['healpixel_setup']
+        self.fields  = self.kwargs['healpixel_list']
+
+        if self.healpix:
+            self.field_path = os.path.join(os.path.dirname(self.out_dir),'fields')
+            if os.path.isdir(self.field_path): os.mkdir(self.field_path)
+
+    def pre_processing_healpix(self,healpix_list=None):
+        if healpix_list is None: healpix_list = self.fields
         
-    def make_input_file(self,overwrite=False):
+        cdata = Table(getdata(self.cfile))
+
+        with open(self.yaml_file) as file:
+            cd,gd = yaml.load_all(file.read())
+
+        for field in healpix_list:
+            infile      = self.gfile.format(field)
+            master_file = os.path.join(self.field_path,'copa_{:05d}.hdf'.format(field))
+
+            mask   = cdata[cd['field']]==field
+            cfield = table_to_dict(cdata[mask])
+
+            print('field : %i'%field)
+            print('counts: %i'%(np.count_nonzero(mask)))
+            
+            if np.count_nonzero(mask)>0:
+                data   = upload_dataFrame(infile,keys='members')
+                
+                pp = preProcessing(data,cfield,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
+                pp.make_cutouts(rmax=8)
+                pp.make_relative_variables(z_window=0.03)
+                pp.assign_true_members()
+                pp.apply_mag_cut()
+                make_master_file(cfield,pp.out,master_file,self.yaml_file,self.header)
+            else:
+                print('Error: the field %i is empty'%field)
+
+    def make_input_file(self,healpix_list=None,overwrite=False):
         t0 = time()
         if (not os.path.isfile(self.master_fname))or(overwrite):
             if self.dataset=='cosmoDC2':
@@ -50,14 +88,12 @@ class copacabana:
                 keys = np.unique(cdata['healpix_pixel'])
                 data = upload_cosmoDC2_hf5_files(self.gfile,keys)
                 print('loading process complete: %.2f s \n'%(time()-t0))
-
-            if self.dataset=='buzzard_v1.98':
-                ## to do
-                print('Work in progress')
-                exit()
             
-            make_master_file(cdata,data,self.master_fname,self.yaml_file,self.header)
-            print('write master file: %s'%self.master_fname)
+                make_master_file(cdata,data,self.master_fname,self.yaml_file,self.header)
+                print('write master file: %s'%self.master_fname)
+            if self.dataset=='buzzard_v2':
+                print('Running pre_processing_healpix() instead \n')
+                self.pre_processing_healpix(healpix_list=healpix_list)
         else:
             print('master file already exists')
 
@@ -268,8 +304,8 @@ if __name__ == 'main':
     ## cosmoDC2 dataset
 
     cfg = 'config_copa_dc2.yaml'
-    copa = copacabana(cfg)
+    #copa = copacabana(cfg)
 
-    copa.make_input_file()
-    copa.run_bma(nCores=4)
-    copa.run_copa()
+    #copa.make_input_file()
+    #copa.run_bma(nCores=4)
+    #copa.run_copa()

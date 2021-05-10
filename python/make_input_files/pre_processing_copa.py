@@ -4,6 +4,7 @@ import healpy
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 from scipy.interpolate import interp1d
+import esutil
 
 Mpc2cm = 3.086e+24
 rad2deg = 180/np.pi
@@ -13,24 +14,26 @@ cosmo = FlatLambdaCDM(H0=100*h,Om0=0.285)
 
 class preProcessing:
     """Produces input catalogs for copacabana"""
-    def __init__(self,cdata,data,dataset='cosmoDC2',h=0.7):
+    def __init__(self,cdata,data,auxfile=None,dataset='cosmoDC2',h=0.7):
         self.data    = data
         self.dataset = dataset
         self.cdata   = cdata
         
         self.simulation = True
-        self.auxfile = './data/annis_mags_04_Lcut.txt'
+        self.auxfile = auxfile
     
     def assign_output_columns():
         self.columns = ['CID','redshift','GID','RA','DEC','z','zerr','mag','magerr','R','zoffset','dmag','pz0','Bkg']
 
     def make_cutouts(self,rmax=12):
-        rac  = np.array(self.cdata['ra'][:])
-        decc = np.array(self.cdata['dec'][:])
+        self.rmax = rmax
+
+        rac  = np.array(self.cdata['RA'][:])
+        decc = np.array(self.cdata['DEC'][:])
         zcls = np.array(self.cdata['redshift'][:])
         
-        rag  = self.data['ra']
-        decg = self.data['dec']
+        rag  = self.data['RA']
+        decg = self.data['DEC']
         
         ang_diam_dist = AngularDistance(zcls)
         
@@ -40,18 +43,19 @@ class preProcessing:
         self.idxc = idxc.astype(np.int64)
         self.radii= radii
 
-    def make_relative_variables(self,zgrid,z_window=0.02):
+    def make_relative_variables(self,z_window=0.02):
         out_data = dict().fromkeys(columns)
         
         ## cluster variables
-        out_data['CID'] = np.array(self.cdata['halo_id'])[self.idxc]
+        out_data['CID']     = np.array(self.cdata['HALOID'])[self.idxc]
         out_data['redshift']= np.array(self.cdata['redshift'])[self.idxc]
-        out_data['magLim']= self.magModel.T
-        
+        out_data['magLim']  = self.magModel.T
+        out_data['field']   = self.data['hpx8'][self.idxg]
+
         ## galaxy variables
         out_data['GID']  = self.data['galaxy_id'][self.idxg]
-        out_data['RA']  = self.data['ra'][self.idxg]
-        out_data['DEC'] = self.data['dec'][self.idxg]
+        out_data['RA']  = self.data['RA'][self.idxg]
+        out_data['DEC'] = self.data['DEC'][self.idxg]
         
         ## make mag variables
         out_data['mag']    = np.vstack([self.data['mag_%s_lsst'%c][self.idxg] for c in ['g','r','i','z']]).T
@@ -59,50 +63,36 @@ class preProcessing:
         #out_data['color']  = np.vstack([])
         
         ## photoz
-        out_data['z']      = self.data['photoz_mode'][self.idxg]
-        out_data['zerr']   = compute_sigma68(zgrid,self.data['photoz_mode'][self.idxg],self.data['photoz_pdf'][self.idxg])
+        out_data['z']      = gaussian_photoz(self.data['redshift'][self.idxg],z_window)[0]
+        out_data['zerr']   = gaussian_photoz(self.data['redshift'][self.idxg],z_window)[1]
         
         ## relative variables
-        rel_var = self.compute_relative_variables(zgrid,self.data['photoz_pdf'][self.idxg],out_data,z_window)
+        rel_var = self.compute_relative_variables(out_data,z_window)
         
         out_data['R']       = self.radii/h
         out_data['dmag']    = rel_var[0]
         out_data['zoffset'] = rel_var[1]
         out_data['pz0']    = rel_var[2]
         out_data['Bkg']     = (self.radii>=4.)&(self.radii<=6.)
-        
-        self.out = out_data
+        self.out = Table(out_data)
     
     def assign_true_members(self):
-        galax_halo_id = self.data['halo_id'][self.idxg]
-        true_members  = np.where((galax_halo_id==self.out['CID']),True,False)
+        galax_halo_id = self.data['HALOID'][self.idxg]
+        match         = esutil.numpy_util.where1(galax_halo_id==self.out['CID'])
+
+        true_members        = np.full((len(self.idxg),),False)
+        true_members[match] = True
         
         self.out['True']        = true_members
-        self.out['z_true']      =self.data['redshift'][self.idxg]
-        self.out['Mr']          =self.data['Mag_true_r_lsst_z0'][self.idxg]
-        self.out['stellar_mass']=self.data['stellar_mass'][self.idxg]
+        self.out['z_true']      = self.data['redshift'][self.idxg]
+        self.out['Mr']          = self.data['Mr'][self.idxg]
+        #self.out['stellar_mass']=self.data['stellar_mass'][self.idxg]
 
     def apply_mag_cut(self,dmag_cut=2):
-        zcls    = np.array(self.cdata['redshift'])[self.idxc]
-        mag     = np.array(self.data['mag_i_lsst'])[self.idxg]
+        cut        = (self.out['dmag']<=dmag_cut)&(self.out['R']*h<=self.rmax)
+        self.out   = self.out[cut]
         
-        ## mag model
-        mag_model_riz = self.getMagLimModel_04L(self.auxfile,zcls,dm=0)
-        dmag = mag-mag_model_riz[1] # i-band
-        
-        gindidces = np.arange(0,len(self.data['mag_i_lsst']),1,dtype=np.int64)
-        
-        ## update indices
-        w, = np.where(dmag <= dmag_cut)
-        self.data_idx,self.gidx = np.unique(gindidces[self.idxg[w]],return_inverse=True)
-        self.idxc = self.idxc[w]
-        self.idxg = self.idxg[w]
-        
-        self.magModel = mag_model_riz[:,w]
-        
-        #self.data = cut_dict(self.data_idx,self.data)
-        
-    def compute_relative_variables(self,zgrid,pdfz,data,z_window=0.02):
+    def compute_relative_variables(self,data,z_window=0.02):
         out = []
         
         # dmag
@@ -113,14 +103,7 @@ class preProcessing:
         zph  = data['z']
         zoffset = (zph-zcls)/(1+zcls)
         
-        # pdfz
-        cpdfz = np.cumsum(pdfz, axis=1)/np.sum(pdfz, axis=1)[:,np.newaxis]
-        zmin  = zcls-1.5*z_window*(1+zcls)
-        zmax  = zcls+1.5*z_window*(1+zcls)
-        zmin = np.where(zmin<0,0.,zmin)
-        zmax = np.where(zmax>3.,3.,zmax)
-        pz0    = np.array([np.interp(zmax[i],zgrid,cpdfz[i])-np.interp(zmin[i],zgrid,cpdfz[i]) for i in range(len(zcls))])
-        
+        pz0 = np.zeros_like(zcls)
         return [dmag,zoffset,pz0]
 
     def compute_mag_error_lsst(self,mag):
@@ -201,7 +184,7 @@ class preProcessing:
         indicies_into_galaxies_in_aperture=[]
         indicies_into_clusters=[]
         for i in range(len(ra_cluster)):
-            w_i=np.where(m1i==i)
+            w_i=esutil.numpy_util.where1(m1i==i)
             indicies_into_galaxies_in_aperture_i=m2i[w_i]
             indicies_into_galaxies_in_aperture.append(indicies_into_galaxies_in_aperture_i)
             indicies_into_clusters_i = m1i[w_i]
@@ -255,3 +238,10 @@ def cut_dict(indices,dicto):
     for col in columns:
         dicto[col] = dicto[col][indices]
     return dicto
+
+def gaussian_photoz(ztrue,zwindow,seed=42):
+    np.random.seed(seed)
+    zerr = zwindow*np.ones_like(ztrue)
+    znoise= ztrue+np.random.normal(scale=zwindow,size=ztrue.size)*(1+ztrue)
+    znoise= np.where(znoise<0.,0.,znoise) # there is no negative redshift
+    return znoise, zerr

@@ -21,6 +21,7 @@ r_in : 4.
 r_out: 6.
 
 ## relative mag cut
+mag_model_file: /home/s1/jesteves/git/ccopa/aux_files/annis_mags_04_Lcut.txt
 dmag_lim: 1
 
 ## cluster aperture radii, it can be a number in Mpc, the hod model or r200 (simulation)

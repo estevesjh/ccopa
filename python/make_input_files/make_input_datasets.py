@@ -14,7 +14,6 @@ from astropy.io.fits import getdata
 
 from upload_cosmoDC2 import upload_cosmoDC2_hf5_files, stack_dict
 
-from libs.copac.projection_radec_to_xy import radec_to_theta,radec_to_xy
 
 rad2deg= 180/np.pi
 h=0.7
@@ -25,11 +24,12 @@ def make_master_file(cdata,data,file_out,yaml_file,header):
         cd,gd = yaml.load_all(file.read())
 
     ## load members with copacabana colnames 
-    mdata               = make_members_data(data,gd)
+    mdata['mid'] = np.arange(0,data['CID'].size,1,dtype=int)
 
     ## load clusters with copacabana colnames
     cdata = rename_dict(cdata,cd)
 
+    ## Writing master file
     write_master_file(file_out,header,cdata,mdata)
 
 def write_master_file(name_file,header,table0,table1,columns1=None):
@@ -43,7 +43,9 @@ def write_master_file(name_file,header,table0,table1,columns1=None):
     fmaster = h5py.File(name_file, "w")
 
     ## match cluster table with galaxy table
-    cidx, = np.where( np.in1d( table0['CID'],np.unique(table1['CID']) ) )
+    #cidx, = np.where( np.in1d( table0['CID'],np.unique(table1['CID']) ) )
+    match  = esutil.numpy_util.match(np.unique(table1['CID']),table0['CID'])
+    cidx   = match[1]
 
     columns0 = list(table0.keys())
     for col in columns0:
@@ -55,15 +57,15 @@ def write_master_file(name_file,header,table0,table1,columns1=None):
     
     fmaster.close()
 
-def make_members_data(data,col_dict):
-    columns = list(col_dict.keys())
-    mdata = dict().fromkeys(columns)
-    mdata['mid'] = np.arange(0,data[col_dict['CID']].size,1,dtype=int)
+# def make_members_data(data,col_dict):
+#     columns = list(col_dict.keys())
+#     mdata = dict().fromkeys(columns)
+#     mdata['mid'] = np.arange(0,data[col_dict['CID']].size,1,dtype=int)
 
-    for col in columns:
-        mdata[col] = data[col_dict[col]]
+#     for col in columns:
+#         mdata[col] = data[col_dict[col]]
     
-    return mdata
+#     return mdata
 
 ### BMA 
 def make_bma_catalog_cut(fname,rmax,dmag_lim=0.,overwrite=False):
@@ -560,3 +562,10 @@ def rename_group(fname,path, group_new, group_old):
     for col in columns:
         group.create_dataset(col, data=mydict[col][:])     
     fmaster.close()
+
+def upload_dataFrame(infile,keys='members'):
+    hdf = pd.HDFStore(infile, mode='r')
+    df1 = hdf.get(keys)
+    hdf.close()
+    data = Table.from_pandas(df1)    
+    return data
