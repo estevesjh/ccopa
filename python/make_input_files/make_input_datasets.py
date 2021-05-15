@@ -8,6 +8,7 @@ import yaml
 import os
 
 from time import time
+import esutil
 
 from astropy.table import Table, vstack, join
 from astropy.io.fits import getdata
@@ -18,19 +19,23 @@ from upload_cosmoDC2 import upload_cosmoDC2_hf5_files, stack_dict
 rad2deg= 180/np.pi
 h=0.7
 
+#cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
+cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true']
+
 ## master file
 def make_master_file(cdata,data,file_out,yaml_file,header):
     with open(yaml_file) as file:
         cd,gd = yaml.load_all(file.read())
 
     ## load members with copacabana colnames 
-    mdata['mid'] = np.arange(0,data['CID'].size,1,dtype=int)
+    data['mid'] = np.arange(0,data['CID'].size,1,dtype=np.int64)
 
     ## load clusters with copacabana colnames
-    cdata = rename_dict(cdata,cd)
+    cdata = rename_columns_table(Table(cdata),cd)#rename_dict(cdata,cd)
+    cdata = cdata[cls_columns]
 
     ## Writing master file
-    write_master_file(file_out,header,cdata,mdata)
+    write_master_file(file_out,header,cdata,data)
 
 def write_master_file(name_file,header,table0,table1,columns1=None):
     """write the clusters and members directories
@@ -127,7 +132,21 @@ def make_bma_input_temp_file(fname,files,indices,nsize,nchunks):
         out['izerr']= np.sqrt(mydict['magerr'][:,2]**2 + mydict['magerr'][:,3]**2)
 
         write_bma_dict_temp_files(files,out,nsize,nchunks)
+
+def write_bma_dict_temp_files(files,table,nsize,nchunks):
+    columns = table.keys()
+    idxs    = np.linspace(0,nsize,nchunks+1,dtype=np.int64)
     
+    for i,file in enumerate(files):
+        if not os.path.isfile(file):
+            hf = h5py.File(file,'w')
+            hf.create_group('bma')
+            for col in columns:
+                ilo,iup = idxs[i],idxs[i+1]
+                hf.create_dataset('bma/%s/'%col,data=table[col][ilo:iup])
+            hf.close()
+    return files
+      
 def read_hdf5_file_to_dict(file,cols=None,indices=None,path='/'):
     hf = h5py.File(file, 'r')
     
@@ -185,19 +204,7 @@ def wrap_up_temp_files(fname,files,path='members/bma/',overwrite=False):
     print('all files combined with success')
     return nmissing
 
-def write_bma_dict_temp_files(files,table,nsize,nchunks):
-    columns = table.keys()
-    idxs    = np.linspace(0,nsize,nchunks+1,dtype=np.int64)
-    
-    for i,file in enumerate(files):
-        if not os.path.isfile(file):
-            hf = h5py.File(file,'w')
-            hf.create_group('bma')
-            for col in columns:
-                ilo,iup = idxs[i],idxs[i+1]
-                hf.create_dataset('bma/%s/'%col,data=table[col][ilo:iup])
-            hf.close()
-    return files
+
 
 
 ### copa
@@ -493,6 +500,15 @@ def dict_to_table(mydict):
     for col in cols:
         table[col] = mydict[col][:]
     return table
+
+def rename_columns_table(data,column_dict):
+    cols_table = list(data.columns)
+
+    for key in column_dict.keys():
+        if key not in cols_table:
+            data.rename_column(column_dict[key],key)
+
+    return data
 
 def rename_dict(data,columns_dict):
     columns = [col for col in columns_dict]

@@ -31,6 +31,9 @@ r_aper_value :
 ## parallel process
 copa_number_of_chunks: 100
 
+healpixel_setup: False
+healpixel_list :
+
 ## Photo-z setup
 # 1st model: a gaussian distribution centered on zcls with a std of z_window
 # 2nd model: a gaussian distribution centered on zcls+bias with a std dependeding on redshift

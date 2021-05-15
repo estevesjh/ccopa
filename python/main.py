@@ -38,7 +38,8 @@ class copacabana:
         self.simulation = simulation
         self.header     = None#get_header(dataset)#'./data/annis_mags_04_Lcut.txt'
 
-        self.out_dir       = os.path.dirname(self.master_fname)
+        
+        self.out_dir       = os.path.dirname(self.master_fname)+'/'
         self.temp_file_dir = check_dir(os.path.join(self.out_dir,'temp_file'))
         self.pdf_file_dir  = check_dir(os.path.join(self.out_dir, 'pdfs'))
 
@@ -46,8 +47,10 @@ class copacabana:
         self.fields  = self.kwargs['healpixel_list']
 
         if self.healpix:
-            self.field_path = os.path.join(os.path.dirname(self.out_dir),'fields')
-            if os.path.isdir(self.field_path): os.mkdir(self.field_path)
+            self.field_path = check_dir(os.path.join(self.out_dir,'fields'))
+            print('master file:',self.master_fname)
+            print('outdir:', self.out_dir)
+            print('field path:', self.field_path)
 
     def pre_processing_healpix(self,healpix_list=None):
         if healpix_list is None: healpix_list = self.fields
@@ -68,16 +71,26 @@ class copacabana:
             print('counts: %i'%(np.count_nonzero(mask)))
             
             if np.count_nonzero(mask)>0:
-                data   = upload_dataFrame(infile,keys='members')
+                print('Loading Data')
+                print('infile: %s'%infile)
+                t0     = time()
+                data   = table_to_dict(upload_dataFrame(infile,keys='members'))
                 
-                pp = preProcessing(data,cfield,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
+                print('ngals : %.2e'%(len(data['RA'][:])))
+                pp = preProcessing(cfield,data,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
                 pp.make_cutouts(rmax=8)
+                
                 pp.make_relative_variables(z_window=0.03)
                 pp.assign_true_members()
                 pp.apply_mag_cut()
+                
+                print('Writing Master File')
                 make_master_file(cfield,pp.out,master_file,self.yaml_file,self.header)
+
+                partial_time = time()-t0
+                print('Partial time: %.2f s \n'%(partial_time))
             else:
-                print('Error: the field %i is empty'%field)
+                print('Error: the field %i is empty\n'%field)
 
     def make_input_file(self,healpix_list=None,overwrite=False):
         t0 = time()

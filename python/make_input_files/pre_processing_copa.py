@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 import numpy as np
 import healpy
+
+from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
+
 from scipy.interpolate import interp1d
 import esutil
+from time import time
 
 Mpc2cm = 3.086e+24
 rad2deg = 180/np.pi
@@ -21,9 +25,9 @@ class preProcessing:
         
         self.simulation = True
         self.auxfile = auxfile
-    
-    def assign_output_columns():
-        self.columns = ['CID','redshift','GID','RA','DEC','z','zerr','mag','magerr','R','zoffset','dmag','pz0','Bkg']
+        
+        ## output columns
+        self.columns = ['HALOID','CID','redshift','GID','RA','DEC','z','zerr','mag','magerr','pz0','R','zoffset','dmag','Bkg']
 
     def make_cutouts(self,rmax=12):
         self.rmax = rmax
@@ -32,30 +36,37 @@ class preProcessing:
         decc = np.array(self.cdata['DEC'][:])
         zcls = np.array(self.cdata['redshift'][:])
         
-        rag  = self.data['RA']
-        decg = self.data['DEC']
+        rag  = np.array(self.data['RA'][:])
+        decg = np.array(self.data['DEC'][:])
         
         ang_diam_dist = AngularDistance(zcls)
         
         idxg,idxc,radii = self.aperture_match(rac,decc,ang_diam_dist,rag,decg,r_aper=rmax)
-        
+
         self.idxg = idxg.astype(np.int64)
         self.idxc = idxc.astype(np.int64)
         self.radii= radii
 
     def make_relative_variables(self,z_window=0.02):
-        out_data = dict().fromkeys(columns)
+        out_data = dict().fromkeys(self.columns)
         
+        ## get mag limit model
+        hid    = np.array(self.cdata['HALOID'])[self.idxc]
+        fields = self.data['hpx8'][self.idxg]
+        zvec   = np.array(self.cdata['redshift'])[self.idxc]
+        magLim = self.getMagLimModel_04L(self.auxfile,zvec,dm=0)
+
         ## cluster variables
-        out_data['CID']     = np.array(self.cdata['HALOID'])[self.idxc]
-        out_data['redshift']= np.array(self.cdata['redshift'])[self.idxc]
-        out_data['magLim']  = self.magModel.T
-        out_data['field']   = self.data['hpx8'][self.idxg]
+        out_data['CID']     = hid
+        out_data['redshift']= zvec
+        out_data['magLim']  = magLim.T
+        out_data['field']   = fields
 
         ## galaxy variables
-        out_data['GID']  = self.data['galaxy_id'][self.idxg]
-        out_data['RA']  = self.data['RA'][self.idxg]
-        out_data['DEC'] = self.data['DEC'][self.idxg]
+        out_data['HALOID']= self.data['HALOID'][self.idxg]
+        out_data['GID']   = self.data['galaxy_id'][self.idxg]
+        out_data['RA']    = self.data['RA'][self.idxg]
+        out_data['DEC']   = self.data['DEC'][self.idxg]
         
         ## make mag variables
         out_data['mag']    = np.vstack([self.data['mag_%s_lsst'%c][self.idxg] for c in ['g','r','i','z']]).T
@@ -72,9 +83,11 @@ class preProcessing:
         out_data['R']       = self.radii/h
         out_data['dmag']    = rel_var[0]
         out_data['zoffset'] = rel_var[1]
-        out_data['pz0']    = rel_var[2]
+        out_data['pz0']     = rel_var[2] ## empty values
         out_data['Bkg']     = (self.radii>=4.)&(self.radii<=6.)
-        self.out = Table(out_data)
+
+        out = Table(out_data)
+        self.out = out[self.columns]
     
     def assign_true_members(self):
         galax_halo_id = self.data['HALOID'][self.idxg]
@@ -85,7 +98,7 @@ class preProcessing:
         
         self.out['True']        = true_members
         self.out['z_true']      = self.data['redshift'][self.idxg]
-        self.out['Mr']          = self.data['Mr'][self.idxg]
+        self.out['Mr']          = self.data['Mag_true_r_des_z01'][self.idxg]
         #self.out['stellar_mass']=self.data['stellar_mass'][self.idxg]
 
     def apply_mag_cut(self,dmag_cut=2):
@@ -174,7 +187,7 @@ class preProcessing:
         radii: array
         relative distance from the center in Mpc
         '''
-        import esutil 
+        #import esutil 
         depth=10
         h=esutil.htm.HTM(depth)
         #Inner match
