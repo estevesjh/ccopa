@@ -36,38 +36,42 @@ class copacabana:
         self.dataset      = dataset
         
         self.simulation = simulation
-        self.header     = None#get_header(dataset)#'./data/annis_mags_04_Lcut.txt'
+        self.header     = None
 
-        
         self.out_dir       = os.path.dirname(self.master_fname)+'/'
         self.temp_file_dir = check_dir(os.path.join(self.out_dir,'temp_file'))
         self.pdf_file_dir  = check_dir(os.path.join(self.out_dir, 'pdfs'))
 
         self.healpix = self.kwargs['healpixel_setup']
-        self.fields  = self.kwargs['healpixel_list']
-
+        self.tiles   = self.kwargs['healpixel_list']
         if self.healpix:
-            self.field_path = check_dir(os.path.join(self.out_dir,'fields'))
-            print('master file:',self.master_fname)
+            self.tiles = np.array(self.tiles)[:3]
+            self.tile_path   = check_dir(os.path.join(self.out_dir,'tiles'))
+            basename = os.path.basename(self.master_fname)
+            self.master_fname_tile       = os.path.join(self.tile_path,basename)
+            self.master_fname_tile_list  = [self.master_fname_tile.format(hpx) for hpx in self.tiles]
+            self.temp_file_dir_list      = [check_dir(os.path.join(self.temp_file_dir,'{:05d}'.format(hpx))) for hpx in self.tiles]
+            print('master file: \n','\n'.join(self.master_fname_tile_list))
             print('outdir:', self.out_dir)
-            print('field path:', self.field_path)
+            print('tile path:', self.tile_path)
 
     def pre_processing_healpix(self,healpix_list=None):
-        if healpix_list is None: healpix_list = self.fields
+        if healpix_list is None: healpix_list = self.tiles
         
         cdata = Table(getdata(self.cfile))
 
         with open(self.yaml_file) as file:
             cd,gd = yaml.load_all(file.read())
 
-        for field in healpix_list:
-            infile      = self.gfile.format(field)
-            master_file = os.path.join(self.field_path,'copa_{:05d}.hdf'.format(field))
+        for tile in healpix_list:
+            tile        = int(tile)
+            infile      = self.gfile.format(tile)
+            mfile       = self.master_fname_tile.format(tile)
 
-            mask   = cdata[cd['field']]==field
-            cfield = table_to_dict(cdata[mask])
+            mask   = cdata[cd['field']]==tile
+            ctile = table_to_dict(cdata[mask])
 
-            print('field : %i'%field)
+            print('tile : %i'%tile)
             print('counts: %i'%(np.count_nonzero(mask)))
             
             if np.count_nonzero(mask)>0:
@@ -77,7 +81,7 @@ class copacabana:
                 data   = table_to_dict(upload_dataFrame(infile,keys='members'))
                 
                 print('ngals : %.2e'%(len(data['RA'][:])))
-                pp = preProcessing(cfield,data,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
+                pp = preProcessing(ctile,data,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
                 pp.make_cutouts(rmax=8)
                 
                 pp.make_relative_variables(z_window=0.03)
@@ -85,12 +89,12 @@ class copacabana:
                 pp.apply_mag_cut()
                 
                 print('Writing Master File')
-                make_master_file(cfield,pp.out,master_file,self.yaml_file,self.header)
+                make_master_file(ctile,pp.out,mfile,self.yaml_file,self.header)
 
                 partial_time = time()-t0
                 print('Partial time: %.2f s \n'%(partial_time))
             else:
-                print('Error: the field %i is empty\n'%field)
+                print('Error: the tile %i is empty\n'%tile)
 
     def make_input_file(self,healpix_list=None,overwrite=False):
         t0 = time()
@@ -109,6 +113,60 @@ class copacabana:
                 self.pre_processing_healpix(healpix_list=healpix_list)
         else:
             print('master file already exists')
+
+    def run_bma_healpix(self,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
+        print('\n')
+        print(5*'-----')
+        print('Starting BMA')
+        self.tiles_size  = len(self.tiles)
+        self.bma_nchunks_per_tile = split_chuncks(self.kwargs['bma_number_of_chunks'],self.tiles_size)
+        self.bma_nchunks = self.bma_nchunks_per_tile*self.tiles_size
+        print('divided in nchunks: %i'%(self.bma_nchunks))
+        print('each tile divided in %i chunks \n'%(self.bma_nchunks_per_tile))
+
+        indices = []
+        self.bma_temp_input_files = []
+        self.bma_temp_output_files= []
+        for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
+            print('Healpixel: {:05d}'.format(hpx))
+            temp_infile = [self.temp_file_dir+'/{:05d}/input_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
+            temp_outfile= [self.temp_file_dir+'/{:05d}/output_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
+
+            idx = make_bma_catalog_cut(mfile,rmax,dmag_lim=1,overwrite=overwrite)
+            make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
+
+            indices.append(idx)
+            self.bma_temp_input_files += temp_infile
+            self.bma_temp_output_files+= temp_outfile
+            print('sample size: %i \n'%(len(idx)))
+
+        # print('temp files')
+        # print('input :','\n'.join(self.bma_temp_input_files))
+        # print('output:','\n'.join(self.bma_temp_output_files))
+
+        ## run BMA
+        print('bma parallel')
+        t0 = time()
+        self.bma_trigger(self.bma_temp_input_files, self.bma_temp_output_files,
+                        nCores=nCores,batchStart=batchStart,batchEnd=batchEnd, overwrite=overwrite)
+        tt = (time()-t0)/60.
+        print('stellarMass total time: %.2f min \n'%(tt))
+
+        ## the files are combined only if all the temp files exists
+        if combine_files:
+            print('wrapping up temp files')
+            for i,mfile in enumerate(self.master_fname_tile_list):
+                iend = i+self.bma_nchunks_per_tile
+                bma_temp_output_files = self.bma_temp_output_files[i:iend]
+                nmissing = wrap_up_temp_files(mfile,bma_temp_output_files,path='members/bma/',overwrite=overwrite)           
+
+            if nmissing>0:
+                print('there are some missing files, plese check the batch numbers and rerun it.\n')
+
+        if remove_temp_files:
+            remove_files(self.bma_temp_output_files)
+            remove_files(self.bma_temp_input_files)
+
 
     def run_bma(self,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
         print('Starting BMA')
@@ -146,7 +204,7 @@ class copacabana:
 
     def bma_trigger(self,infiles,outfiles,
                    nCores=2,batchStart=0,batchEnd=None,overwrite=False):
-        if batchEnd is None: batchEnd = self.bma_nchunks
+        if batchEnd is None: batchEnd = len(outfiles)
 
         batches = np.arange(batchStart,batchEnd,1,dtype=np.int64)        
         inPath = self.kwargs["lib_inPath"]
@@ -303,6 +361,11 @@ def computeNgals(g,cat):
     cat['Ngals'] = -1.
     cat['Ngals'][good_indices] = Ngals
     return cat
+
+def split_chuncks(a,b):
+    q = a//b
+    if (a%b) != 0: q=q+1
+    return q
 
 # Disable
 def blockPrint():

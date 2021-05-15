@@ -115,7 +115,7 @@ def make_bma_input_temp_file(fname,files,indices,nsize,nchunks):
         mydict = read_hdf5_file_to_dict(fname,indices=indices,cols=mcols,path='members/main/')
 
         out= dict().fromkeys(out_columns)
-        for col in mcols:
+        for col in out_columns[:3]:
             out[col] = mydict[col][:]
         
         out['indices'] = np.arange(0,out['mid'].size,1,dtype=np.int64)
