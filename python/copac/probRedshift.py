@@ -148,7 +148,7 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,zfile=None,bandwidth=0.008,
     if sigma==-1:
         # bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename='auxTable/bpz_phtoz_model_cosmoDC2.csv')
         bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename=zfile)
-        #bias  = np.zeros_like(sigma)
+        bias  = np.zeros_like(sigma)
         
     else:
         sigma = sigma*np.ones_like(cat['redshift'])

@@ -40,6 +40,10 @@ class preProcessing:
         decg = np.array(self.data['DEC'][:])
         
         ang_diam_dist = AngularDistance(zcls)
+        mag_lim       = self.getMagLimModel_04L(self.auxfile,zcls,dm=0).T
+        
+        self.cdata['DA'] = ang_diam_dist
+        self.cdata['magLim'] = mag_lim
         
         idxg,idxc,radii = self.aperture_match(rac,decc,ang_diam_dist,rag,decg,r_aper=rmax)
 

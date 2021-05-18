@@ -16,6 +16,35 @@ blue = '#2E86C1'
 gray = '#A6ACAF'
 red = '#A93226'
 
+
+def sky_plot(RA,DEC,title="Buzzard v1.6 - 1000 GC",savefig='sky_plot.png'):
+    ############################
+    #Codigo para plotar coordenadas de objetos na esfera celeste
+    #############################
+    import matplotlib.pyplot as pplot
+    import astropy.coordinates as coord
+    from astropy import units as u
+    
+    ra = coord.Angle(RA*u.degree)
+    ra = ra.wrap_at(180*u.degree)
+    dec = coord.Angle(DEC*u.degree)
+
+    ##############
+    #Plotando os objetos
+    #import astropy.coordinates as coord
+    fig = pplot.figure(figsize=(8,6))
+    ax = fig.add_subplot(111, projection="aitoff")
+    plt.title(title)
+    ax.set_xticklabels(['14h','16h','18h','20h','22h','0h','2h','4h','6h','8h','10h'])
+    ax.grid(True)
+    ax.scatter(ra.radian, dec.radian, s=10, alpha=0.5)
+    plt.subplots_adjust(top=0.9,bottom=0.0)
+    # ax.set_xticklabels(['10h','8h','6h','4h','2h','0h','20h','18h','16h','14h','12h'])
+    
+    fig.savefig(savefig, bbox_inches = "tight")
+    #plt.clf()
+    #plt.close()
+
 def plot_scaling_relation(x,y,title='Buzzard',xlims=(1,900),xl=r'$N_{true}$',yl=r'$N_{obs}$',fit=False):
     ## Bins
     xbins     = np.logspace( np.nanmin(np.log10(x)), np.nanmax(np.log10(x)) ,12)
@@ -71,9 +100,9 @@ def plot_residual(xvar,yvar1,yvar2, ax=None, xlabel='redshift', xbins=None,log=F
     if log:
         residual = np.log(yvar2/yvar1)
     mask2    = np.logical_not(np.isnan(residual))&np.logical_not(np.isinf(residual))
-    mask     = (np.abs(residual)<0.5)&(mask2)
+    mask     = remove_outliers(residual,n=5)&(mask2)
     if log:
-        mask     = remove_outliers(residual,n=2)&(mask2)
+        mask     = remove_outliers(residual,n=5)&(mask2)
     
     nmask    = np.logical_not(mask)
     of       = 1.-1.*np.count_nonzero(mask)/len(yvar1)
@@ -84,15 +113,16 @@ def plot_residual(xvar,yvar1,yvar2, ax=None, xlabel='redshift', xbins=None,log=F
     residualb = np.array([np.nanmedian(residual[mask][idx]) for idx in keys])
     residualb_std = np.array([np.nanstd(residual[mask][idx]) for idx in keys])
     
-    ax.scatter(xvar[nmask],residual[nmask],color=red,alpha=0.25,s=50,label='Outlier fraction: %.2f'%(of))
+    ax.scatter(xvar[nmask],residual[nmask],color='r',alpha=0.25,s=50,label='Outlier fraction: %.2f'%(of))
     ax.scatter(xvar,residual,color='#A6ACAF',alpha=0.25,s=50)
     ax.errorbar(xvarb,residualb,xerr=xvarb_std,yerr=residualb_std,color='#2E86C1',fmt='o')
+    print(residualb_std)
     ax.set_xlabel(xlabel,fontsize=18)
-    ax.legend()
+    #ax.legend()
 
 def plot_triple_pannel(zcls,ntru,logm,yvar1,yvar2,title='Residuals',save=None,ymin=-1,ymax=1.5):
     ylabel=r'frac. residual'
-    ngbins = np.logspace(np.log10(2),np.nanmax(np.log10(yvar2)),9)
+    ngbins = np.logspace(np.log10(2),1.*np.nanpercentile(np.log10(yvar2),95),9)
     
     fig, ax = plt.subplots(3, 1, sharey='col', figsize=(10,14))
     fig.subplots_adjust(hspace=0.4,wspace=0.6)
@@ -101,12 +131,12 @@ def plot_triple_pannel(zcls,ntru,logm,yvar1,yvar2,title='Residuals',save=None,ym
     plot_residual(ntru,yvar1,yvar2,ax=ax[2],xlabel=r'$N_{true}$',xbins=ngbins)
     plot_residual(logm,yvar1,yvar2,ax=ax[1],xlabel=r'$\log{M_{200}}$ [$M_{\odot}\, h^{-1}$]')
 
-    fig.suptitle(title,fontsize=18)
+    #fig.suptitle(title,fontsize=18)
 
     ax[1].set_ylabel(ylabel,fontsize=24)
     ax[2].set_xscale('log')
     ax[0].set_ylim(ymin,ymax)
-    ax[2].set_xlim(0.7*1,2*np.nanmax(yvar2))
+    ax[2].set_xlim(0.8*ngbins[0],1.*ngbins[-1])
     for i in range(3):
         ax[i].axhline(0.2,color='r',linestyle='--')
         ax[i].axhline(-0.2,color='r',linestyle='--')

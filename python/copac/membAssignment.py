@@ -634,7 +634,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
 
     print('Writing Output: Catalogs  \n')
     print('Writing Galaxy Output')
-    Colnames=['mid', 'GID', 'CID', 'norm', 'Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 
+    Colnames=['tile','mid', 'GID', 'CID', 'norm', 'Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 
               'pdf', 'pdfr_bkg', 'pdfz_bkg', 'pdfc_bkg', 'pdfm_bkg', 'pdf_bkg','z', 'zerr','zoffset','pz0','Rn']
     galOut = galCut[Colnames]
     

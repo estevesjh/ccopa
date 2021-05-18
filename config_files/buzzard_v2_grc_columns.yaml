@@ -19,4 +19,4 @@ z_true: redshift
 Mr    : Mag_true_r_des_z01
 mag   : ['mag_g_lsst','mag_r_lsst','mag_i_lsst','mag_z_lsst']
 magerr: ['magerr_g_des','magerr_r_des','magerr_i_des','magerr_z_des']
-field : hpx8
+tile : hpx8

@@ -83,13 +83,12 @@ class copacabana:
                 print('ngals : %.2e'%(len(data['RA'][:])))
                 pp = preProcessing(ctile,data,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
                 pp.make_cutouts(rmax=8)
-                
                 pp.make_relative_variables(z_window=0.03)
                 pp.assign_true_members()
                 pp.apply_mag_cut()
                 
                 print('Writing Master File')
-                make_master_file(ctile,pp.out,mfile,self.yaml_file,self.header)
+                make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
 
                 partial_time = time()-t0
                 print('Partial time: %.2f s \n'%(partial_time))
@@ -136,18 +135,18 @@ class copacabana:
             make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
 
             indices.append(idx)
-            self.bma_temp_input_files += temp_infile
-            self.bma_temp_output_files+= temp_outfile
+            self.bma_temp_input_files.append(temp_infile)
+            self.bma_temp_output_files.append(temp_outfile)
             print('sample size: %i \n'%(len(idx)))
 
-        # print('temp files')
-        # print('input :','\n'.join(self.bma_temp_input_files))
-        # print('output:','\n'.join(self.bma_temp_output_files))
+        print('temp files')
+        print('input :',self.bma_temp_input_files)
+        print('output:',self.bma_temp_output_files)
 
         ## run BMA
         print('bma parallel')
         t0 = time()
-        self.bma_trigger(self.bma_temp_input_files, self.bma_temp_output_files,
+        self.bma_trigger(flatten_list(self.bma_temp_input_files), flatten_list(self.bma_temp_output_files),
                         nCores=nCores,batchStart=batchStart,batchEnd=batchEnd, overwrite=overwrite)
         tt = (time()-t0)/60.
         print('stellarMass total time: %.2f min \n'%(tt))
@@ -156,8 +155,9 @@ class copacabana:
         if combine_files:
             print('wrapping up temp files')
             for i,mfile in enumerate(self.master_fname_tile_list):
-                iend = i+self.bma_nchunks_per_tile
-                bma_temp_output_files = self.bma_temp_output_files[i:iend]
+                bma_temp_output_files = self.bma_temp_output_files[i]
+                print('bma out files')
+                print('\n'.join(bma_temp_output_files[-3:]))
                 nmissing = wrap_up_temp_files(mfile,bma_temp_output_files,path='members/bma/',overwrite=overwrite)           
 
             if nmissing>0:
@@ -222,7 +222,66 @@ class copacabana:
         Parallel(n_jobs=nCores)(
             delayed(smass.calc_copa_v2)(infiles[i], outfiles[i], inPath) for i in batches)
         print('ended smass calc')
+
+    def run_copa_healpix(self,run_name,pz_file=None,nCores=20,old_code=False):
+        print('\nStarting Copa')
+        print('run %s'%run_name)
+        #blockPrint()
+        gal_list, cluster_list = [],[]
+        for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
+            print('here')
+            galaxies, clusters= load_copa_input_catalog(mfile,self.kwargs,pz_file=pz_file,simulation=self.simulation)
+
+            #galaxies = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name)))
+            #clusters = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name)))
+            
+            galaxies['tile'] = hpx
+            clusters['tile'] = hpx
+            print('\n')
+            print('tile file:',self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name))
+            print('\n')
+            galaxies.write(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name),format='fits',overwrite=True)
+            clusters.write(self.temp_file_dir+'/{:05d}/{}_copa_test_cls.fits'.format(hpx,run_name),format='fits',overwrite=True)
+
+            gal_list.append(galaxies)
+            cluster_list.append(clusters)
         
+        # self.nclusters = len(clusters)
+        # self.ngalaxies = len(galaxies)
+        # self.copa_nchunks = self.kwargs['copa_number_of_chunks']
+        
+        # gal_list, cluster_list = make_chunks(galaxies,clusters,self.copa_nchunks)
+        # # gal_files = [self.temp_file_dir+'/{name}_{type}_input_{id:05d}.fits'.format(name=run_name,type='members',id=i) for i in range(self.copa_nchunks)]
+
+        # for gal,fname in zip(gal_list,gal_files):
+        #     gal.write(fname,format='fits',overwrite=True)
+
+        t0 = time()
+        if not old_code:
+            cat, g0 = self.copa_trigger(run_name,gal_list,cluster_list,nCores=nCores)
+
+            ## compute Ptaken
+            galOut = compute_ptaken(g0)
+
+            ### update Ngals
+            catOut = computeNgals(galOut,cat)
+            
+            # write_copa_output(self.master_fname,galOut,catOut,run_name,overwrite=True)
+
+            for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
+                gali = galOut[galOut["tile"]==hpx]
+                cati = catOut[catOut["tile"]==hpx]
+                write_copa_output(mfile,gali,cati,run_name,overwrite=True)
+
+        else:
+            catOut, galOut = self.old_memb_trigger(run_name,gal_list,cluster_list,nCores=nCores)
+        
+        #enablePrint()
+        # save total computing time
+        totalTime = time() - t0
+        totalTimeMsg = "Total time: {}s".format(totalTime)
+        print(totalTimeMsg)
+
     def run_copa(self,run_name,pz_file=None,nCores=20,old_code=False):
         print('\nStarting Copa')
         print('run %s'%run_name)
@@ -271,10 +330,13 @@ class copacabana:
         print(totalTimeMsg)
 
     
-    def copa_trigger(self,run_name,gal_list,cluster_list,nCores=2):
-        self.copa_temp_cluster_output_files = [self.temp_file_dir+'/{name}_{type}_output_{id:05d}.fits'.format(name=run_name,type='cluster',id=i) for i in range(self.copa_nchunks)]
-        self.copa_temp_members_output_files = [self.temp_file_dir+'/{name}_{type}_output_{id:05d}.fits'.format(name=run_name,type='members',id=i) for i in range(self.copa_nchunks)]
+    def copa_trigger(self,run_name,gal_list,cluster_list,nCores=2,):
+        self.copa_nchunks = len(gal_list)
+        # self.copa_temp_cluster_output_files = [self.temp_file_dir+'/{name}_{type}_output_{id:05d}.fits'.format(name=run_name,type='cluster',id=i) for i in range(self.copa_nchunks)]
+        # self.copa_temp_members_output_files = [self.temp_file_dir+'/{name}_{type}_output_{id:05d}.fits'.format(name=run_name,type='members',id=i) for i in range(self.copa_nchunks)]
         self.copa_pdf_output_files          = [self.pdf_file_dir+'/{name}_{type}_output_{id:05d}.hdf5'.format(name=run_name,type='pdf',id=i) for i in range(self.copa_nchunks)]
+        if self.healpix:
+            self.copa_pdf_output_files = [self.pdf_file_dir+'/{name}_{type}_output_{id:05d}.hdf5'.format(name=run_name,type='pdf',id=hpx) for hpx in self.tiles]
 
         # ckwargs = [{'outfile_pdfs':pdfi,'member_outfile':membi,'cluster_outfile':clsi,'r_in':self.kwargs['r_in'],
         #             'r_out':self.kwargs['r_out'], 'sigma_z':self.kwargs['z_window'], 'simulation': self.simulation,
@@ -301,24 +363,34 @@ class copacabana:
         return cat, g0
 
     def load_copa_out(self,dtype,run):
-        return load_copa_output(self.master_fname,dtype,run)
+        if self.healpix:
+            data = []
+            for mfile in self.master_fname_tile_list:
+                data.append(load_copa_output(mfile,dtype,run))
+            return vstack(data)
+        else:
+            return load_copa_output(self.master_fname,dtype,run)
 
     def compute_muStar(self,run,true_members=False,overwrite=True,nCores=20):
-        fmaster = h5py.File(self.master_fname,'r')
-        check   = 'mass' in fmaster['members/bma/'].keys()
-        check2  = 'MU' not in fmaster['clusters/copa/%s'%run].keys()
-        fmaster.close()
+        if not self.healpix:
+            fmaster = h5py.File(self.master_fname,'r')
+            check   = 'mass' in fmaster['members/bma/'].keys()
+            check2  = 'MU' not in fmaster['clusters/copa/%s'%run].keys()
+            fmaster.close()
 
-        if not check:
-            print('please run BMA before running compute_muStar()')
+            if not check:
+                print('please run BMA before running compute_muStar()')
 
-        if check2 or overwrite: 
-            if true_members:
-                compute_mu_star_true(self.master_fname,run,ngals=True,nCores=nCores)
-            else:
+            if check2 or overwrite: 
+                # if true_members:
                 compute_mu_star(self.master_fname,run,nCores=nCores)
-            
-
+                if self.simulation:
+                    compute_mu_star_true(self.master_fname,run,ngals=True,nCores=nCores)
+        else:
+            for mfile in self.master_fname_tile_list:
+                compute_mu_star(mfile,run,nCores=nCores)
+                if self.simulation:
+                    compute_mu_star_true(mfile,run,ngals=True,nCores=nCores)
 
 ################
 def get_files(config_file):
@@ -374,6 +446,9 @@ def blockPrint():
 # Restore
 def enablePrint():
     sys.stdout = sys.__stdout__
+
+def flatten_list(regular_list):
+    return sum(regular_list,[])
 
 if __name__ == 'main':
     ## run example

@@ -1,5 +1,6 @@
 import numpy as np
 import h5py
+import glob
 
 from time import time
 from joblib import Parallel, delayed
@@ -8,10 +9,10 @@ from astropy.table import Table, vstack, join
 from astropy.io.fits import getdata
 
 import sys
-sys.path.append("../../")
-from python.main import copacabana
-from python.make_input_files.upload_cosmoDC2 import upload_cosmoDC2_hf5_files
-from python.make_input_files import read_hdf5_file_to_dict
+sys.path.append("/home/s1/jesteves/git/ccopa/python/")
+from main import copacabana
+from make_input_files.upload_cosmoDC2 import upload_cosmoDC2_hf5_files
+from make_input_files import read_hdf5_file_to_dict
 
 def main_bpz():
     nCores = 60
@@ -74,7 +75,9 @@ def main():
     t0     = time()
     ## Gaussian set up
     infile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5' ## laod infile
-    zw_file= '/home/s1/jesteves/git/ccopa/aux_files/zwindow_model_emuBPZ.txt'
+    zw_file= '/home/s1/jesteves/git/ccopa/aux_files/emuBPZ_correction_z_buzzard.txt'
+
+    files = glob.glob('/data/des61.a/data/johnny/Buzzard/Buzzard_v2.0.0/output/tiles/buzzard_v2.0.0_copa_golden*')
 
     zsigma   = 0.03
     parallel = True
@@ -88,35 +91,42 @@ def main():
     if not emulator:
         new_group = get_name_string(zsigma) ## e.g. gauss005
     else:
-        new_group = 'emuBPZ_zww'
+        new_group = 'emuBPZ'
     
-    print('Load Infile \n')
-    hf     = h5py.File(infile,'a')
-    group  = hf['members/main']
+    total_time=[]
+    for infile in files:
+        print('\nLoad Infile')
+        print('infile: %s'%(infile))
+        hf     = h5py.File(infile,'a')
+        group  = hf['members/main']
 
-    indict = dict()
-    indict['redshift'] = group['redshift'][:]
-    indict['z_true']   = group['z_true'][:]
-    indict['mag']      = group['mag'][:]
-    indict['magerr']   = group['magerr'][:]
-    indict['CID']      = group['CID'][:]
-    indict['mid']      = group['mid'][:]
-    # hf.close()
+        indict = dict()
+        indict['redshift'] = group['redshift'][:]
+        indict['z_true']   = group['z_true'][:]
+        indict['mag']      = group['mag'][:]
+        indict['magerr']   = group['magerr'][:]
+        indict['CID']      = group['CID'][:]
+        indict['mid']      = group['mid'][:]
+        # hf.close()
 
-    group          = hf['members/emuBPZ/']
-    indict['z']    = group['z'][:]
-    indict['zerr'] = group['zerr'][:]
-    hf.close()
+        group          = hf['members/emuBPZ_zww/']
+        indict['z']    = group['z'][:]
+        indict['zerr'] = group['zerr'][:]
+        hf.close()
 
-    print('Running make_gaussian_photoz')
-    mkPz     = make_gaussian_photoz(zsigma,infile=emulator_infile)
-    outdict  = mkPz.run(indict,zw_file,emulator=emulator,parallel=parallel,nCores=nCores)
+        print('Running make_gaussian_photoz')
+        mkPz     = make_gaussian_photoz(zsigma,infile=emulator_infile)
+        outdict  = mkPz.run(indict,zw_file,emulator=emulator,parallel=parallel,nCores=nCores)
 
-    t1 = (time()-t0)/60
-    print('partial time: %.2f min\n'%(t1))
+        print('Writing outfile')
+        write_gauss_outfile(infile,outdict,new_group,overwrite=True)
+        
+        t1 = (time()-t0)/60
+        print('partial time: %.2f min\n'%(t1))
+        total_time.append(t1)
 
-    print('Writing outfile')
-    write_gauss_outfile(infile,outdict,new_group,overwrite=True)
+    total_time = np.array(total_time)[-1]#.sum()
+    print('Total time: %.2f min'%(total_time))
 
 def get_name_string(zsigma):
     return 'gauss0'+str(zsigma).split('.')[1]
@@ -160,21 +170,22 @@ class make_gaussian_photoz:
             zerr = zwindow*np.ones_like(ztrue)
             znoise= ztrue+np.random.normal(scale=zwindow,size=ztrue.size)*(1+ztrue)
             znoise= np.where(znoise<0.,0.,znoise) # there is no negative redshift
+            zoffset = (znoise-zcls)/(1+zcls)
+            zwindow = zwindow*np.ones_like(zcls)
         else:
             # znoise, zerr = load_emulator(ztrue,mag,magerr,self.emu_infile)
-            znoise = mydict['z']
+            znoise = mydict['z']-0.092
             zerr   = mydict['zerr']
-            # znoise = np.where(znoise<0.,0.,znoise)
+            znoise = np.where(znoise<0.,0.,znoise)
+            zoffset = (znoise-zcls)/(1+zcls)
+            # zwindow = zwindow*np.ones_like(zcls)
 
-        zoffset = (znoise-zcls)/(1+zcls)
+            ## make corrections
+            zres    = np.genfromtxt(zwindow_file,delimiter=',')
+            zb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
+            zwindow = np.interp(zcls,zb,sigma) ##np.interp(zcls,zb,sigma)
+            zoffset = zoffset#-np.interp(zcls,zb,mean)
 
-        ## make corrections
-        zres    = np.genfromtxt(zwindow_file,delimiter=',')
-        zb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
-        zwindow = np.interp(zcls,zb,sigma) ##np.interp(zcls,zb,sigma)
-        zoffset = zoffset-np.interp(zcls,zb,mean)
-
-        # zwindow = zwindow*np.ones_like(zcls)
         print('Compute pz,0')
         ## parelizar
         if parallel:
@@ -373,7 +384,7 @@ def delete_group(fmaster,path):
     for col in cols:
         del group[col]
 
-def load_emulator(z_true,mag,magerr,infile,offset=0.089,correction_file='emuBPZ_correction_z.txt'):
+def load_emulator(z_true,mag,magerr,infile,offset=0.,correction_file='emuBPZ_correction_z.txt'):
     ztrue = [z_true]
     colors= [(mag[0]-mag[1]),(mag[1]-mag[2]),(mag[2]-mag[3])]
     Xnew  = np.array(ztrue+mag+magerr+colors).T
@@ -381,7 +392,7 @@ def load_emulator(z_true,mag,magerr,infile,offset=0.089,correction_file='emuBPZ_
     print('load emulator file')
     # import pickle
     # loaded_model = pickle.load(open(infile, 'rb'))
-    loaded_model = load_cpickle_gc(infile)
+    # loaded_model = load_cpickle_gc(infile)
     bpz_model_mean, bpz_model_error, dnf_model_mean, dnf_model_error = loaded_model
 
     print('assign predictions')
@@ -411,5 +422,9 @@ def load_cpickle_gc(mypickle):
 
 
 if __name__ == '__main__':
+    # infile = '/home/s1/berlfein/des40a/notebooks/emuPhotoZ_bpz_dnf_random_forest.pckl'
+    # loaded_model = load_cpickle_gc(infile)
+    # global loaded_model
+
     main()
     #main_bpz()

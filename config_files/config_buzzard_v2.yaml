@@ -33,7 +33,7 @@ copa_number_of_chunks: 100
 # 2nd model: a gaussian distribution centered on zcls+bias with a std dependeding on redshift
 # 2nd model is a text file with: z, bias, std
 z_window     : -1
-z_model_file : /home/s1/jesteves/git/ccopa/aux_files/zwindow_cosmoDC2_emuBPZ.txt
+z_model_file : /home/s1/jesteves/git/ccopa/aux_files/emuBPZ_correction_z_buzzard.txt
 
 ## Healpixel config
 healpixel_setup : True

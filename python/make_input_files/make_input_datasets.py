@@ -14,13 +14,13 @@ from astropy.table import Table, vstack, join
 from astropy.io.fits import getdata
 
 from upload_cosmoDC2 import upload_cosmoDC2_hf5_files, stack_dict
-
+from projection_radec_to_xy import radec_to_theta,radec_to_xy
 
 rad2deg= 180/np.pi
 h=0.7
 
 #cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
-cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true']
+cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim']
 
 ## master file
 def make_master_file(cdata,data,file_out,yaml_file,header):
@@ -89,11 +89,14 @@ def make_bma_catalog_cut(fname,rmax,dmag_lim=0.,overwrite=False):
         cut,    = np.where((radii<=rmax)&(dmag<=dmag_lim))
         
         fmaster.create_group('members/bma/')
-        fmaster.create_dataset('members/bma/mid/', data=mid[cut])
+        fmaster.create_dataset('members/bma/mid_cut/', data=mid[cut])
         fmaster['members/bma/'].attrs['rmax'] = rmax
         fmaster['members/bma/'].attrs['dmag'] = dmag_lim
         fmaster['members/bma/'].attrs['nsize'] = int(cut.size)
+
+        bma_indices = mid[cut]
     else:
+        bma_indices = fmaster['members/bma/mid_cut'][:]
         if overwrite:
             print('in construction')
             # exclude_group(fmaster,'members/bma')
@@ -101,8 +104,6 @@ def make_bma_catalog_cut(fname,rmax,dmag_lim=0.,overwrite=False):
             # make_bma_catalog_cut(fname,rmax,dmag_lim=dmag_lim)
         else:
             print('BMA cut already exists; overwrite=False')
-
-    bma_indices = fmaster['members/bma/mid/'][:]
     fmaster.close()
     return bma_indices
 
@@ -187,10 +188,13 @@ def wrap_up_temp_files(fname,files,path='members/bma/',overwrite=False):
 
     ## write bma output on the master file
     columns = list(table.keys())
-    columns.remove('mid')
+    #columns.remove('mid')
 
     fmaster   = h5py.File(fname,'a')
-    nsize_old = fmaster[path+'mid/'][:].size
+    nsize_old = fmaster[path+'mid_cut/'][:].size
+    if nsize_old!= len(table):
+        print('Error: output table doesnt match input table')
+        print(fname,'\n')
 
     checkColumns= np.sum([not check_not_hf5(fmaster[path],col) for col in columns])
 

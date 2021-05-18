@@ -1,16 +1,19 @@
+import glob
 import numpy as np
-from astropy.table import Table 
+from astropy.table import Table,vstack
 from astropy.io.fits import getdata
 
 ############### SETUP ###############
-infile='/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/temp_file/emuBPZ-rhod-zw_copa_test_gal.fits'
-outfile='/home/s1/jesteves/git/ccopa/aux_files/zwindow_cosmoDC2_emuBPZ.txt'
+#infile='/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/temp_file/emuBPZ-rhod-zw_copa_test_gal.fits'
+infile='/data/des61.a/data/johnny/Buzzard/Buzzard_v2.0.0/output/temp_file/?????/testEmu_copa_test_gal.fits'
+files = glob.glob(infile)
+outfile='./aux_files/emuBPZ_correction_z_buzzard.txt'
 
 z_col     = 'z'
 ztrue_col = 'z_true'
 
 zmin,zmax = 0.09,1.0
-dx        = 0.020
+dx        = 0.025
 
 dz_max    = 0.3
 Rmax      = 1.0
@@ -37,7 +40,8 @@ def fit_gauss(z):
     return res
 
 ### Loading Catalog
-gal     = Table(getdata(infile))
+#gal     = Table(getdata(infile))
+gal     = vstack([Table(getdata(infile)) for infile in files])
 gal     = gal[gal['R']<=Rmax]
 
 z       = gal[z_col]
