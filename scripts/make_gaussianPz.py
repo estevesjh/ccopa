@@ -107,12 +107,12 @@ def main():
         indict['magerr']   = group['magerr'][:]
         indict['CID']      = group['CID'][:]
         indict['mid']      = group['mid'][:]
-        # hf.close()
-
-        group          = hf['members/emuBPZ_zww/']
-        indict['z']    = group['z'][:]
-        indict['zerr'] = group['zerr'][:]
         hf.close()
+
+        # group          = hf['members/emuBPZ_zww/']
+        # indict['z']    = group['z'][:]
+        # indict['zerr'] = group['zerr'][:]
+        # hf.close()
 
         print('Running make_gaussian_photoz')
         mkPz     = make_gaussian_photoz(zsigma,infile=emulator_infile)
@@ -173,10 +173,11 @@ class make_gaussian_photoz:
             zoffset = (znoise-zcls)/(1+zcls)
             zwindow = zwindow*np.ones_like(zcls)
         else:
-            # znoise, zerr = load_emulator(ztrue,mag,magerr,self.emu_infile)
-            znoise = mydict['z']-0.092
-            zerr   = mydict['zerr']
-            znoise = np.where(znoise<0.,0.,znoise)
+            znoise, zerr = load_emulator(ztrue,mag,magerr,self.emu_infile)
+            # znoise = mydict['z']-0.092
+            # zerr   = mydict['zerr']
+            znoise  -= 0.092
+            znoise  = np.where(znoise<0.,0.,znoise)
             zoffset = (znoise-zcls)/(1+zcls)
             # zwindow = zwindow*np.ones_like(zcls)
 
@@ -422,9 +423,9 @@ def load_cpickle_gc(mypickle):
 
 
 if __name__ == '__main__':
-    # infile = '/home/s1/berlfein/des40a/notebooks/emuPhotoZ_bpz_dnf_random_forest.pckl'
-    # loaded_model = load_cpickle_gc(infile)
-    # global loaded_model
+    infile = '/home/s1/berlfein/des40a/notebooks/emuPhotoZ_bpz_dnf_random_forest.pckl'
+    loaded_model = load_cpickle_gc(infile)
+    global loaded_model
 
     main()
     #main_bpz()

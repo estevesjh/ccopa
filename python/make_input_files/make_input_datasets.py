@@ -445,18 +445,17 @@ def write_copa_output(fname,gal,cat,run_name,overwrite=False):
     pass
 
 def delete_group(fname,path):
-    fmaster = h5py.File(fname,'a')
     try:
+        fmaster = h5py.File(fname,'a')
         group   = fmaster[path]
-    except:
+        cols = group.keys()
+        if len(cols)>0:
+            for col in cols: del group[col]
         fmaster.close()
+    except:
+        print('Error: failed to delete group %s'%path)
         return
-
-    cols = group.keys()
-    if len(cols)>0:
-        for col in cols: del group[col]
-    fmaster.close()
-
+    
 def load_copa_output(fname,dtype,run,old_code=False):
     if dtype=='cluster':
         ## load copa and bma

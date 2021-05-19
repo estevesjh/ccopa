@@ -168,8 +168,9 @@ def old_memb(cat,gal,member_outfile=None,cluster_outfile=None,dataset='chandra',
     cosmo=cd.set_omega_k_0(cosmo)
 
     if zfile is not None:
-        zmedian,zsigma=np.loadtxt(zfile,unpack=True)
-        zfunc=interp1d(zmedian,zsigma)
+        zmedian,zsigma=look_up_table_photoz_model(filename=zfile)
+        #zmedian,zsigma=np.loadtxt(zfile,unpack=True)
+        zfunc=interp1d(zmedian,zsigma,fill_value='extrapolate')
     else:
         zfunc = lambda z: sigma_z*(1+z)
 
@@ -769,6 +770,14 @@ def old_memb(cat,gal,member_outfile=None,cluster_outfile=None,dataset='chandra',
     #     dz = (g1['redshift']-g1['z_true'])/(1+g1['z_true'])
     #     trueMembers = g1['True']
 
+    if 'tile' in g1.columns:
+        hpx = g1['tile'][0]
+        tile_id_gal = hpx*np.ones_like(galid2)
+        tile_id     = hpx*np.ones_like(cluster_ID)
+    else:
+        tile_id_gal = np.zeros_like(galid2)
+        tile_id     = np.zeros_like(cluster_ID)
+
     print 'writing member file'
 
     col1=pyfits.Column(name='COADD_OBJECTS_ID',format='K',array=galid2)
@@ -818,11 +827,12 @@ def old_memb(cat,gal,member_outfile=None,cluster_outfile=None,dataset='chandra',
     col39=pyfits.Column(name='MAGERR_AUTO_R',format='E',array=galmagRerr2)
     col40=pyfits.Column(name='MAGERR_AUTO_I',format='E',array=galmagIerr2)
     col41=pyfits.Column(name='MAGERR_AUTO_Z',format='E',array=galmagZerr2)
+    col42=pyfits.Column(name='tile',format='K',array=tile_id_gal)
     if dataset=='mock':
         col42=pyfits.Column(name='True',format='L',array=true_members2)
         cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col16,col19,col20,col36,col37,col38,col39,col40,col41,col42])
     else:
-        cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col16,col19,col20,col36,col37,col38,col39,col40,col41])
+        cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col16,col19,col20,col36,col37,col38,col39,col40,col41,col42])
 
     #cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col13,col14,col15,col16,col17,col18,col19,col20,col21,col22,col23,col24,col25,col26,col27,col28,col29,col30,col31,col32,col33,col34,col35,col36,col37,col38,col39,col40])
     # cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col13,col14,col15,col16,col17,col18,col19,col20,col21,col22,col24,col25,col27,col28,col36,col37,col38,col39,col40,col41])
@@ -933,9 +943,9 @@ def old_memb(cat,gal,member_outfile=None,cluster_outfile=None,dataset='chandra',
         col57=pyfits.Column(name='Z_ERR',format='E',array=zeros) #JCBB
     col58=pyfits.Column(name='MOCK_FLAG',format='K',array=Bg_FLAG) #JCBB
     #col58=pyfits.Column(name='BCKGD',format='E',array=bg_gal_density)
+    col59=pyfits.Column(name='tile',format='K',array=tile_id)
 
-
-    cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col41,col42])
+    cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col41,col42,col59])
     #cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col13,col14,col15,col16,col17,col18,col19,col20,col21,col22,col23,col24,col25,col26,col27,col31,col32,col33,col34,col35,col36,col37,col38,col42]) #JCBB
     #cols=pyfits.ColDefs([col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col13,col14,col15,col16,col17,col18,col19,col20,col21,col22,col23,col24,col25,col26,col27,col28,col29,col30,col31,col32,col33,col34,col35,col36,col37,col38,col39,col40,col41,col42,col43,col44,col45,col46,col47,col48,col49,col50,col51,col52,col53,col54,col55,col56,col57])
     tbhdu=pyfits.BinTableHDU.from_columns(cols)
@@ -1758,3 +1768,8 @@ def readBuzzard(gal_file,cat_file,add_noise=False,zsigma=0.03):
     cat["z_lambda"] = cat["redshift"]
 
     return gal,cat
+
+def look_up_table_photoz_model(filename='./auxTable/photoz_cls_model_dnf_y3_gold_2_2.fits'):
+    data = Table.read(filename,format='ascii')
+    zmean, bias, sigma = data['z'][:], data['bias'], data['sigma'][:]
+    return zmean,sigma

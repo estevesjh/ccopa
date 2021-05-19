@@ -45,7 +45,7 @@ class copacabana:
         self.healpix = self.kwargs['healpixel_setup']
         self.tiles   = self.kwargs['healpixel_list']
         if self.healpix:
-            self.tiles = np.array(self.tiles)[:3]
+            self.tiles = np.array(self.tiles)#[:3]
             self.tile_path   = check_dir(os.path.join(self.out_dir,'tiles'))
             basename = os.path.basename(self.master_fname)
             self.master_fname_tile       = os.path.join(self.tile_path,basename)
@@ -267,15 +267,14 @@ class copacabana:
             catOut = computeNgals(galOut,cat)
             
             # write_copa_output(self.master_fname,galOut,catOut,run_name,overwrite=True)
-
-            for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
-                gali = galOut[galOut["tile"]==hpx]
-                cati = catOut[catOut["tile"]==hpx]
-                write_copa_output(mfile,gali,cati,run_name,overwrite=True)
-
         else:
             catOut, galOut = self.old_memb_trigger(run_name,gal_list,cluster_list,nCores=nCores)
         
+        for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
+            gali = galOut[galOut["tile"]==hpx]
+            cati = catOut[catOut["tile"]==hpx]
+            write_copa_output(mfile,gali,cati,run_name,overwrite=False)
+
         #enablePrint()
         # save total computing time
         totalTime = time() - t0
@@ -356,7 +355,10 @@ class copacabana:
         return cat, g0
     
     def old_memb_trigger(self,run_name,gal_list,cluster_list,nCores=4):
-        ckwargs = {'dataset':'copa','sigma_z':self.kwargs['z_window'], 'zfile':self.kwargs['z_model_file'], 
+        self.copa_nchunks = len(gal_list)
+        if self.kwargs['z_window']<0: zfile = self.kwargs['z_model_file']
+        else: zfile = None
+        ckwargs = {'dataset':'copa','sigma_z':self.kwargs['z_window'], 'zfile':zfile, 
                    'r_aper_model':self.kwargs['r_aper_model'],'zmin_gal':self.kwargs['zmin_gal'],'zmax_gal':self.kwargs['zmax_gal']}
         out = Parallel(n_jobs=nCores)(delayed(old_memb)(cluster_list[i],gal_list[i], **ckwargs) for i in range(self.copa_nchunks))
         g0,cat = getOutFile(out)
