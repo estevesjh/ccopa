@@ -130,11 +130,11 @@ def doRadialBin(radii,pz,rvec,testPz=False):
     r_mean = 0.5*(rvec[1:]+rvec[:-1])
     return ng_density, r_mean
 
-def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None):
+def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=0.05):
     w, = np.where(radii<=rmax)
     radii, pz = radii[w], pz[w]
 
-    rmin,step=0.1,0.1
+    rmin=0.1
     rbin=np.r_[rmin:rmax:step,rmax]
 
     area = np.pi*rbin**2
@@ -162,11 +162,11 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None):
     # mass_density=np.where(mass_density<0.1,1e11,mass_density)
     pc=200*np.ones_like(radii)
     rho_crit = rhoc(0)
-    critdense1 = crit_density(1.35984671381e+11,z_cls,0.23,0.77)
+    critdense1 = rhoc(z_cls)#crit_density(1.35984671381e+11,z_cls,0.23,0.77)
     critdense = critdense1*np.ones_like(rbin)
 
-    X=200 #desired excess over critical density, ex. if X=200, calculates R/M200
-    dX=1  #acceptance window around X
+    X=200  #desired excess over critical density, ex. if X=200, calculates R/M200
+    dX=50  #acceptance window around X
     ratio=mass_density/critdense
 
     f=interp1d(rbin,ratio,fill_value='extrapolate')
@@ -183,10 +183,18 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None):
     # r200m = radii_new[w]
 
     if r200m.size > 0:
-        r200m=np.mean(r200m) #mean of all possible r200s is measured r200
-    else:
+        r200m=np.median(r200m) #mean of all possible r200s is measured r200
+        if (r200m<0.4)&(nbkg>0.1):
+            print 'bad cluster:',cls_id,'ratio min/max:',np.nanmin(ratio_new),np.nanmax(ratio_new)
+            r200m = calcR200(radii,pz,cls_id,z_cls,nbkg*0.8,ra_c,dec_c,DA,rmax=rmax,pixelmap=pixelmap,step=0.05)
+
+    if (r200m.size<1):
         r200m=0.1 #bogus r200=0 if nothing within acceptance range
-        #print 'bad cluster:',cls_id,'ratio min/max:',min(ratio_new),max(ratio_new)
+        print '\n'
+        print 'look here'
+        print 'bad cluster:',cls_id,'ratio min/max:',np.nanmin(ratio_new),np.nanmax(ratio_new)
+        print '\n'
+        print '\n'
 
     return r200m
 
@@ -393,7 +401,7 @@ def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,pixelmap=None,compute=
         da = cat['DA'][idx]
 
         # if compute:
-        r200i = calcR200(gal['R'],gal['pz0'],cls_id,z_cls,nbkg[idx],rac,dec,da,rmax=3,pixelmap=pixelmap)
+        r200i = calcR200(gal['R']*h,gal['pz0'],cls_id,z_cls,nbkg[idx],rac,dec,da,rmax=3,pixelmap=pixelmap)/h
         #r200i = checkR200(r200i,z_cls,M200=defaultMass)
 
         raperi = 1.*r200i

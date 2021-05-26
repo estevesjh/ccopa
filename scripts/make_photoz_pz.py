@@ -14,79 +14,14 @@ from main import copacabana
 from make_input_files.upload_cosmoDC2 import upload_cosmoDC2_hf5_files
 from make_input_files import read_hdf5_file_to_dict
 
-def main_bpz():
-    nCores = 60
-    t0     = time()
-    infile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5' ## laod infile
-    zw_file= '/home/s1/jesteves/copa_v2.1/libs/scripts/zwindow_cosmoDC2_bpz.txt'
 
-    root= '/home/s1/jesteves/git/ccopa/'
-    cfg = root+'libs/config_copa_dc2.yaml'
-    copa = copacabana(cfg)
-
-    cinfile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/cosmoDC2_v1.1.4_2000_GC.fits'
-    cdata   = Table(getdata(cinfile))
-
-    print('Load infile \n')
-    # keys   = np.unique(cdata['healpix_pixel'])
-    # data   = upload_cosmoDC2_hf5_files(copa.gfile,keys,columns_copa=['CID','GID','indices','z','z_true','zerr','pz0'])
-    # mydict = read_hdf5_file_to_dict(copa.master_fname,cols=['CID','mid','GID','z_true','z','redshift'],path='members/main/') ## None load all columns
-
-    bpz = read_hdf5_file_to_dict(copa.master_fname,path='members/bpz',cols=['mid','CID','z_true','z','zerr','photoz_pdf','zoffset'])
-    table = Table(bpz)
-
-    # print('macthing samples\n')
-    # main = Table(mydict)
-    # dat  = Table(data)
-    # table= join(main,dat,keys=['CID','GID'])
-    
-    print('computing new variables\n')
-    #table['z'] = table['photoz_mean']
-    #table['zoffset'] = (table['z']-table['redshift'])/(1+table['redshift'])
-
-    cids  = cdata['halo_id']
-    cidxs = table['CID']
-    
-    keys  = list(chunks(cidxs,cids))
-    zcls = 1.*np.zeros_like(table['z_true'])
-    for i,idx in enumerate(keys):
-        zcls[idx] = cdata['redshift'][i]
-        
-    table['redshift'] = zcls
-
-    # zcls    = table['redshift']
-    zwindow = 0.03*np.ones_like(zcls)
-
-    # zres    = np.genfromtxt(zwindow_file,delimiter=',')
-    # zb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
-    # zwindow = np.interp(zcls,zb,sigma)*(1+zcls) #zwindow*np.ones_like(zcls)#np.interp(zcls,zb,sigma)
-    # zoffset = zoffset-np.interp(zcls,zb,mean)*(1+zcls)
-    
-    pdfz = np.array(table['photoz_pdf'])
-    pz0  = compute_pdfz_bpz_parallel(cidxs,pdfz,zcls,zwindow,nCores=nCores)
-    
-    # compute_pdfz_bpz(pdfz,zoffset,zcls,zwindow)
-
-    table['pz0']    = pz0
-    print(pz0[pz0>0.])
-    write_gauss_outfile(infile,table,'bpz1',overwrite=True)
-
-def main():
+def gaussian_photoz_buzzard(zsigma,nCores=60,emulator=False):
     t0     = time()
     ## Gaussian set up
-    infile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5' ## laod infile
-    zw_file= '/home/s1/jesteves/git/ccopa/aux_files/emuBPZ_correction_z_buzzard.txt'
-
+    #infile = '/data/des61.a/data/johnny/CosmoDC2/sample2021/outputs/cosmoDC2_v1.1.4_copa.hdf5' ## laod infile
     files = glob.glob('/data/des61.a/data/johnny/Buzzard/Buzzard_v2.0.0/output/tiles/buzzard_v2.0.0_copa_golden*')
-
-    zsigma   = 0.03
-    parallel = True
-    nCores   = 60
-    
-    ### Emulator set up
-    emulator = True  ## if you want a gaussian photo-z set emulator to false
     emulator_infile = '/home/s1/berlfein/des40a/notebooks/emuPhotoZ_bpz_dnf_random_forest.pckl'
-    ####
+    zw_file= '/home/s1/jesteves/git/ccopa/aux_files/emuBPZ_correction_z_buzzard.txt'
 
     if not emulator:
         new_group = get_name_string(zsigma) ## e.g. gauss005
@@ -116,7 +51,7 @@ def main():
 
         print('Running make_gaussian_photoz')
         mkPz     = make_gaussian_photoz(zsigma,infile=emulator_infile)
-        outdict  = mkPz.run(indict,zw_file,emulator=emulator,parallel=parallel,nCores=nCores)
+        outdict  = mkPz.run(indict,zw_file,emulator=emulator,parallel=True,nCores=nCores)
 
         print('Writing outfile')
         write_gauss_outfile(infile,outdict,new_group,overwrite=True)
@@ -427,5 +362,5 @@ if __name__ == '__main__':
     loaded_model = load_cpickle_gc(infile)
     global loaded_model
 
-    main()
+    gaussian_photoz_buzzard(0.03,nCores=60,emulator=True)
     #main_bpz()

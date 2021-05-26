@@ -229,17 +229,17 @@ class copacabana:
         #blockPrint()
         gal_list, cluster_list = [],[]
         for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
-            print('here')
+            # print('here')
             galaxies, clusters= load_copa_input_catalog(mfile,self.kwargs,pz_file=pz_file,simulation=self.simulation)
 
-            #galaxies = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name)))
-            #clusters = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name)))
+            # galaxies = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name[:-5])))
+            # clusters = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name[:-5])))
             
             galaxies['tile'] = hpx
             clusters['tile'] = hpx
             print('\n')
             print('tile file:',self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name))
-            print('\n')
+            # print('\n')
             galaxies.write(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name),format='fits',overwrite=True)
             clusters.write(self.temp_file_dir+'/{:05d}/{}_copa_test_cls.fits'.format(hpx,run_name),format='fits',overwrite=True)
 
@@ -273,7 +273,7 @@ class copacabana:
         for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
             gali = galOut[galOut["tile"]==hpx]
             cati = catOut[catOut["tile"]==hpx]
-            write_copa_output(mfile,gali,cati,run_name,overwrite=False)
+            write_copa_output(mfile,gali,cati,run_name,overwrite=True)
 
         #enablePrint()
         # save total computing time
