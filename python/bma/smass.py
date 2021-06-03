@@ -83,12 +83,18 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
 
     #print zmet
     # protect against too small of errors => values = 0
-    ix = np.nonzero(grerr < 0.02)
+    ix = np.nonzero(grerr < 0.02)[0]
     grerr[ix] = 0.02
-    ix = np.nonzero(rierr < 0.02)
+    print 'fraction of small errors: gr', 1.*ix/ri.size
+
+    ix = np.nonzero(rierr < 0.02)[0]
     rierr[ix] = 0.02
-    ix = np.nonzero(izerr < 0.02)
+    print 'fraction of small errors: ri', 1.*ix.size/ri.size
+
+    ix = np.nonzero(izerr < 0.02)[0]
     izerr[ix] = 0.02
+    print 'fraction of small errors: iz', 1.*ix.size/ri.size
+    print '\n'
 
     # prepping for output
     nvariables = 27
@@ -105,6 +111,7 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
     spline_list_Dict = [get_spline(splines[sp],zmet[sp],allzed) for sp in range(len(splines))]
 
     #size = 10
+    nmodels = len(splines)
     for galaxy in range(0,size) :
         zed = allzed[galaxy]
 
@@ -146,6 +153,7 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
             zmets.append(szmet)
             chisq = gr_chisq + ri_chisq + iz_chisq
             probability = 1-chi2.cdf(chisq, 3-1) ;# probability of chisq greater than this
+            
             weight.append(probability)
             chisqs.append(chisq)
         spIndex = np.argmax(weight)
@@ -179,7 +187,7 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
         #try :
         #    if weight.shape[0]>1.:
         #        mean_sfr = float(ws.numpy_weighted_median(sfrs, weights=weight)) #np.median(sfr_weighted) #sfr_weighted.sum()/w1
-        #    else:
+        #    else:weight
         #        mean_sfr = -70.
         #except :
         #    mean_sfr = -70.
@@ -231,6 +239,9 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
         # JTA: to make purely distance modulus
         #iabs = i[galaxy] - distanceModulus 
         #fsMass = gstarMass( iabs )
+        if i+2<=size:
+            myidx = np.argsort(-1*weight)
+            print 'probs, chisq', weight[myidx], np.array(chisqs)[myidx]
 
         # saving for output
         out_index.append( index[galaxy])
@@ -298,7 +309,7 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
 
     vectors = [out_index,out_id,out_haloid,out_gr,out_stdgr,out_gi,out_stdgi,out_kii,out_stdkii,out_kri,out_stdkri,out_iobs,
                out_distmod,out_iabs,out_rabs,out_mass_gr,out_mass_gi,out_mass,out_stdmass,out_sfr,out_stdsfr,out_age,out_stdage,
-               out_bestsp,out_zmet,out_bestzmet,out_zed,out_bestchisq]
+               out_bestsp,out_bestzmet,out_zed,out_bestchisq]
 
     mydict = dict().fromkeys(columns)
     for col,arr in zip(columns,vectors):

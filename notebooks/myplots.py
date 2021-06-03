@@ -7,15 +7,6 @@ blue = '#2E86C1'
 gray = '#A6ACAF'
 red = '#A93226'
 
-import numpy as np
-import scipy.stats as st
-import matplotlib.pyplot as plt
-
-## colors
-blue = '#2E86C1'
-gray = '#A6ACAF'
-red = '#A93226'
-
 
 def sky_plot(RA,DEC,title="Buzzard v1.6 - 1000 GC",savefig='sky_plot.png'):
     ############################
@@ -168,6 +159,31 @@ def plot_four_pannel(zcls,r200,ntrue,nbkg,x1,x2,ylabel='y',ylims=(-2,2)):
     ax[0].set_ylabel(ylabel,fontsize=22)
     ax[1].set_ylabel(ylabel,fontsize=22)
 
+def plot_r200_identity(r200h,r200,title='Buzzard',ylabel=r'$R_{200}$ [$Mpc\, h^{-1}$]',xlims=[1.,900],ylims=[1.,900],logy=False, li='hod'):
+    r200_bins = splitBins(r200)
+    if logy:
+        r200_bins = np.logspace(np.log10(np.nanmin(r200)+0.01),np.log10(np.nanmax(r200)),11)
+#     _, r200_bins = np.histogram(r200,bins=10)
+    keys, r200b = makeBins(r200,r200_bins)
+    r200b_std = np.diff(r200_bins)/2
+    
+    r200hb = np.array([np.mean(r200h[idx]) for idx in keys])
+    r200hb_std = np.array([np.std(r200h[idx]) for idx in keys])
+
+    fig = plt.figure(figsize=(8,6))
+    sc = plt.scatter(r200,r200h,s=75, alpha=0.25, color=gray)#,label='$scatter = %.1f$'%(np.std(ngals-nt))
+    plt.errorbar(r200b,r200hb,xerr=r200b_std,yerr=r200hb_std,color=blue,linewidth=2.,fmt='o')
+    if not logy:
+        plt.plot(np.linspace(xlims[0],xlims[1]),np.linspace(ylims[0],ylims[1]),linestyle='--',color='r')
+    
+    plt.ylim(ylims)
+    plt.xlim(xlims)
+
+    plt.xlabel(ylabel,fontsize=22)
+    plt.ylabel(r'$R_{200,%s}$ [$Mpc\, h^{-1}$]'%li,fontsize=22)
+    plt.legend(fontsize=14)
+    plt.title(title,fontsize=22)
+    fig.tight_layout()
 
 def lin_reg(X,Y):
     barX=np.mean(X); barY=np.mean(Y)
