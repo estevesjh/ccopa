@@ -309,7 +309,7 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
 
     vectors = [out_index,out_id,out_haloid,out_gr,out_stdgr,out_gi,out_stdgi,out_kii,out_stdkii,out_kri,out_stdkri,out_iobs,
                out_distmod,out_iabs,out_rabs,out_mass_gr,out_mass_gi,out_mass,out_stdmass,out_sfr,out_stdsfr,out_age,out_stdage,
-               out_bestsp,out_bestzmet,out_zed,out_bestchisq]
+               out_bestsp,out_bestzmet,out_zmet,out_bestchisq]
 
     mydict = dict().fromkeys(columns)
     for col,arr in zip(columns,vectors):
