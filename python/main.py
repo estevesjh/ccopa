@@ -57,18 +57,20 @@ class copacabana:
 
     def pre_processing_healpix(self,healpix_list=None):
         if healpix_list is None: healpix_list = self.tiles
-        
         cdata = Table(getdata(self.cfile))
 
         with open(self.yaml_file) as file:
             cd,gd = yaml.load_all(file.read())
+        
+        print('cluster columns')
+        print(cd)
 
         for tile in healpix_list:
             tile        = int(tile)
             infile      = self.gfile.format(tile)
             mfile       = self.master_fname_tile.format(tile)
 
-            mask   = cdata[cd['field']]==tile
+            mask   = cdata[cd['tile']]==tile
             ctile = table_to_dict(cdata[mask])
 
             print('tile : %i'%tile)
@@ -80,10 +82,13 @@ class copacabana:
                 t0     = time()
                 data   = table_to_dict(upload_dataFrame(infile,keys='members'))
                 
-                print('ngals : %.2e'%(len(data['RA'][:])))
-                pp = preProcessing(ctile,data,dataset=self.dataset,auxfile=self.kwargs['mag_model_file'])
+                print('ngals : %.2e'%(len(data[gd['RA']][:])))
+                pp = preProcessing(ctile,data,
+                                   dataset=self.dataset,auxfile=self.kwargs['mag_model_file'],
+                                   columns_cls=cd, columns_gal=gd)
+
                 pp.make_cutouts(rmax=8)
-                pp.make_relative_variables(z_window=0.03)
+                pp.make_relative_variables(z_window=0.03,nCores=60)
                 pp.assign_true_members()
                 pp.apply_mag_cut()
                 
@@ -286,8 +291,9 @@ class copacabana:
         print('run %s'%run_name)
         #blockPrint()
         galaxies, clusters= load_copa_input_catalog(self.master_fname,self.kwargs,pz_file=pz_file,simulation=self.simulation)
-        galaxies.write(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name,format='fits',overwrite=True)
-        clusters.write(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name,format='fits',overwrite=True)
+        galaxies['tile'] = 0
+        #galaxies.write(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name,format='fits',overwrite=True)
+        #clusters.write(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name,format='fits',overwrite=True)
 
         #galaxies = Table(getdata(self.temp_file_dir+'/%s_copa_test_gal.fits'%run_name))
         #clusters = Table(getdata(self.temp_file_dir+'/%s_copa_test_cls.fits'%run_name))

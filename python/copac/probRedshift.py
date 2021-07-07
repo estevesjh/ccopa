@@ -126,16 +126,17 @@ def truncatedGaussian(z,zcls,zmin,zmax,sigma,vec=False):
     return pdf
 
 def verifyTrunc(zcls,sigma):
-    return (zcls-5*sigma*(1+zcls))>0.
+    return (zcls-5*sigma)>0.
 
-def getModel(zvec,zcls,sigma):
+def getModel(zvec,zcls,sigma,bias):
+    mean  = zcls-bias
     trunc = verifyTrunc(zcls,sigma)
     if trunc:
-        pdf = truncatedGaussian(zvec,zcls,0.,np.max(zvec),sigma,vec=False)
+        pdf = truncatedGaussian(zvec,mean,0.,np.max(zvec),sigma,vec=False)
     else:
-        pdf = gaussian(zvec,zcls,sigma)
+        pdf = gaussian(zvec,mean,sigma)
 
-    zoff  = (zvec-zcls)/(1+zcls)
+    zoff  = (zvec-mean)/(1+zcls)
     pdf = np.where(np.abs(zoff)>=2.*sigma,0.,pdf)
     return pdf 
     
@@ -145,10 +146,10 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,zfile=None,bandwidth=0.008,
     pdf_cf = []
     pdf_field = []
     
-    if sigma==-1:
+    if sigma<0:
         # bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename='auxTable/bpz_phtoz_model_cosmoDC2.csv')
         bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename=zfile)
-        bias  = np.zeros_like(sigma)
+        #bias  = np.zeros_like(sigma)
         
     else:
         sigma = sigma*np.ones_like(cat['redshift'])
@@ -180,7 +181,7 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,zfile=None,bandwidth=0.008,
             k_i = k_i_bkg = k_cf_i = np.ones_like(zvec)
             # pdf_i = pdf_i_bkg = np.ones_like(z_gal)
             
-        k_i = getModel(zvec,z_cls+bias[idx]*(1+z_cls),sigma[idx]*(1+z_cls))
+        k_i = getModel(zvec,z_cls,sigma[idx]*(1+z_cls),bias[idx]*(1+z_cls))
         
         dz=1.
         pdf_cls.append(dz*k_i)

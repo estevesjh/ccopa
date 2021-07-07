@@ -6,7 +6,11 @@ from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 
+from joblib import Parallel, delayed
+
 from scipy.interpolate import interp1d
+import scipy.integrate as integrate
+
 import esutil
 from time import time
 
@@ -18,7 +22,7 @@ cosmo = FlatLambdaCDM(H0=100*h,Om0=0.285)
 
 class preProcessing:
     """Produces input catalogs for copacabana"""
-    def __init__(self,cdata,data,auxfile=None,dataset='cosmoDC2',h=0.7):
+    def __init__(self,cdata,data,auxfile=None,dataset='cosmoDC2',h=0.7,columns_gal=None,columns_cls=None):
         self.data    = data
         self.dataset = dataset
         self.cdata   = cdata
@@ -26,22 +30,28 @@ class preProcessing:
         self.simulation = True
         self.auxfile = auxfile
         
+        self.columns_cls = get_cluster_cols(columns_cls)
+        self.columns_gal = get_galaxy_cols(columns_gal)
+
         ## output columns
         self.columns = ['HALOID','CID','redshift','GID','RA','DEC','z','zerr','mag','magerr','pz0','R','zoffset','dmag','Bkg']
 
     def make_cutouts(self,rmax=12):
         self.rmax = rmax
+        cc = self.columns_cls
+        cg = self.columns_gal
 
-        rac  = np.array(self.cdata['RA'][:])
-        decc = np.array(self.cdata['DEC'][:])
-        zcls = np.array(self.cdata['redshift'][:])
+        rac  = np.array(self.cdata[cc['RA']][:])
+        decc = np.array(self.cdata[cc['DEC']][:])
+        zcls = np.array(self.cdata[cc['redshift']][:])
         
-        rag  = np.array(self.data['RA'][:])
-        decg = np.array(self.data['DEC'][:])
+        rag  = np.array(self.data[cg['RA']][:])
+        decg = np.array(self.data[cg['DEC']][:])
         
         ang_diam_dist = AngularDistance(zcls)
         mag_lim       = self.getMagLimModel_04L(self.auxfile,zcls,dm=0).T
         
+        self.cdata['CID']= self.cdata[cc['HALOID']]
         self.cdata['DA'] = ang_diam_dist
         self.cdata['magLim'] = mag_lim
         
@@ -51,13 +61,15 @@ class preProcessing:
         self.idxc = idxc.astype(np.int64)
         self.radii= radii
 
-    def make_relative_variables(self,z_window=0.02):
+    def make_relative_variables(self,z_window=0.02,nCores=4):
+        cc = self.columns_cls
+        cg = self.columns_gal
         out_data = dict().fromkeys(self.columns)
         
         ## get mag limit model
-        hid    = np.array(self.cdata['HALOID'])[self.idxc]
-        fields = self.data['hpx8'][self.idxg]
-        zvec   = np.array(self.cdata['redshift'])[self.idxc]
+        hid    = np.array(self.cdata[cc['HALOID']])[self.idxc]
+        fields = self.data[cg['tile']][self.idxg]
+        zvec   = np.array(self.cdata[cc['redshift']])[self.idxc]
         magLim = self.getMagLimModel_04L(self.auxfile,zvec,dm=0)
 
         ## cluster variables
@@ -67,22 +79,22 @@ class preProcessing:
         out_data['field']   = fields
 
         ## galaxy variables
-        out_data['HALOID']= self.data['HALOID'][self.idxg]
-        out_data['GID']   = self.data['galaxy_id'][self.idxg]
-        out_data['RA']    = self.data['RA'][self.idxg]
-        out_data['DEC']   = self.data['DEC'][self.idxg]
+        out_data['HALOID']= self.data[cg['HALOID']][self.idxg]
+        out_data['GID']   = self.data[cg['GID']][self.idxg]
+        out_data['RA']    = self.data[cg['RA']][self.idxg]
+        out_data['DEC']   = self.data[cg['DEC']][self.idxg]
         
         ## make mag variables
-        out_data['mag']    = np.vstack([self.data['mag_%s_lsst'%c][self.idxg] for c in ['g','r','i','z']]).T
-        out_data['magerr'] = self.compute_mag_error_lsst(out_data['mag']).T
+        out_data['mag']    = np.vstack([ np.array(self.data[mi][self.idxg]) for mi in cg['mag']]).T
+        out_data['magerr'] = np.vstack([ np.array(self.data[mi][self.idxg]) for mi in cg['magerr']]).T #self.compute_mag_error_lsst(out_data['mag']).T
         #out_data['color']  = np.vstack([])
         
         ## photoz
-        out_data['z']      = gaussian_photoz(self.data['redshift'][self.idxg],z_window)[0]
-        out_data['zerr']   = gaussian_photoz(self.data['redshift'][self.idxg],z_window)[1]
+        out_data['z']      = self.data[cg['z']][self.idxg]    #gaussian_photoz(self.data['redshift'][self.idxg],z_window)[0]
+        out_data['zerr']   = self.data[cg['zerr']][self.idxg] #gaussian_photoz(self.data['redshift'][self.idxg],z_window)[1]
         
         ## relative variables
-        rel_var = self.compute_relative_variables(out_data,z_window)
+        rel_var = self.compute_relative_variables(out_data,z_window,nCores=nCores)
         
         out_data['R']       = self.radii/h
         out_data['dmag']    = rel_var[0]
@@ -94,33 +106,41 @@ class preProcessing:
         self.out = out[self.columns]
     
     def assign_true_members(self):
-        galax_halo_id = self.data['HALOID'][self.idxg]
+        cg = self.columns_gal
+
+        galax_halo_id = self.data[cg['HALOID']][self.idxg]
         match         = esutil.numpy_util.where1(galax_halo_id==self.out['CID'])
 
         true_members        = np.full((len(self.idxg),),False)
         true_members[match] = True
         
         self.out['True']        = true_members
-        self.out['z_true']      = self.data['redshift'][self.idxg]
-        self.out['Mr']          = self.data['Mag_true_r_des_z01'][self.idxg]
+        self.out['z_true']      = self.data[cg['z_true']][self.idxg]
+        self.out['Mr']          = self.data[cg['Mr']][self.idxg]
         #self.out['stellar_mass']=self.data['stellar_mass'][self.idxg]
 
     def apply_mag_cut(self,dmag_cut=2):
         cut        = (self.out['dmag']<=dmag_cut)&(self.out['R']*h<=self.rmax)
         self.out   = self.out[cut]
         
-    def compute_relative_variables(self,data,z_window=0.02):
-        out = []
-        
+    def compute_relative_variables(self,data,z_window=0.02,nCores=4):
+        cidxs = np.array(data['CID'])
+        zcls  = np.array(data['redshift'])
+        zph   = np.array(data['z'])
+        zerr  = np.array(data['zerr'])
+
         # dmag
         dmag= data['mag'][:,2]-data['magLim'][:,1]
         
         # zoffset
-        zcls = data['redshift']
-        zph  = data['z']
         zoffset = (zph-zcls)/(1+zcls)
         
-        pz0 = np.zeros_like(zcls)
+        if zerr.size!=zoffset.size:
+            print('here')
+
+        #pz0 = np.zeros_like(zcls)
+        pz0   = compute_pdfz_parallel(cidxs,zoffset,zerr,zcls,z_window*np.ones_like(zerr),nCores=nCores)
+
         return [dmag,zoffset,pz0]
 
     def compute_mag_error_lsst(self,mag):
@@ -250,6 +270,87 @@ def compute_sigma68(zgrid,zmode,pdfz):
         
     return s68
 
+def chunks(ids1, ids2):
+    """Yield successive n-sized chunks from data"""
+    for id in ids2:
+        w, = np.where( ids1==id )
+        yield w
+
+
+def check_boundaries(zmin,zcls):
+    zoff_min = zcls+zmin*(1+zcls)
+    if zoff_min<0:
+        return zmin-zoff_min
+    else:
+        return zmin
+
+def gaussian(x,mu,sigma):
+    return np.exp(-(x-mu)**2/(2*sigma**2))/(sigma*np.sqrt(2*np.pi))
+
+def compute_pdfz_parallel(cidxs,zoffset,zerr,zcls,zwindow,nCores=40,npoints=1000,bpz=False,pdfz=None):
+    cids,indices = np.unique(cidxs,return_index=True)
+    zcls    = zcls[indices].copy()
+    zwindow = zwindow[indices].copy()
+    
+    ncls = len(cids)
+    ngals= len(cidxs)
+
+    keys   = list(chunks(cidxs,cids))
+    pz_out = np.zeros((ngals,),dtype=np.float64)
+
+    zoffset_group = group_by(zoffset,keys)
+    zerr_group    = group_by(zerr,keys)
+
+    out    = Parallel(n_jobs=nCores)(delayed(compute_pdfz)(zoffset_group[i], zerr_group[i], zwindow[i], zcls[i],
+                                                           npoints=npoints) for i in range(len(keys)))
+    
+    for i,idx in enumerate(keys):
+        if len(out[i])==idx.size:
+            pz_out[idx] = out[i]
+        else:
+            print('error')
+    return pz_out
+
+def compute_pdfz(zoffset,membzerr,sigma,zcls,npoints=1000):
+    ''' Computes the probability of a galaxy be in the cluster
+        for an interval with width n*windows. 
+        Assumes that the galaxy has a gaussian redshift PDF.
+
+        npoints=1000 # it's accurate in 2%% level
+    ''' 
+    out = np.zeros_like(membzerr)
+
+    zmin, zmax = -5*sigma, 5*sigma
+    zmin = check_boundaries(zmin,zcls)
+
+    ## photo-z floor
+    zerr = membzerr.copy()
+    idx = np.where(zerr<1e-3)[0]
+    zerr[idx] = 1e-3
+
+    z       = np.linspace(zmin,zmax,npoints)
+    zz, yy  = np.meshgrid(z,np.array(zoffset))
+    zz, yy2 = np.meshgrid(z,np.array(zerr))
+
+    pdfz = gaussian(zz,yy,yy2)
+    
+    w,  = np.where( np.abs(z) <= 1.5*sigma) ## integrate in 1.5*sigma
+    p0 = integrate.trapz(pdfz[:,w],x=zz[:,w])
+    pz = np.where(p0>1., 1., p0)
+
+    #w,  = np.where( np.abs(z) <= 1.5*sigma) ## integrate in 1.5*sigma
+    #a   = np.cumsum(pdfz, axis=1)/np.sum(pdfz, axis=1)[:,np.newaxis]
+    #pz  = a[:,w[-1]]-a[:,w[0]]
+
+    ## get out with galaxies outside 5 sigma
+    # pz = np.where(np.abs(zoffset) >= 3*sigma, 0., pz)
+    pz = np.where(np.abs(zoffset) >= 3*sigma, 0., pz/np.max(pz))
+
+    return pz
+
+def group_by(x,keys):
+    return [x[idx] for idx in keys]
+
 def cut_dict(indices,dicto):
     columns = list(dicto.keys())
     for col in columns:
@@ -262,3 +363,34 @@ def gaussian_photoz(ztrue,zwindow,seed=42):
     znoise= ztrue+np.random.normal(scale=zwindow,size=ztrue.size)*(1+ztrue)
     znoise= np.where(znoise<0.,0.,znoise) # there is no negative redshift
     return znoise, zerr
+
+def get_cluster_cols(columns,simulation=True):
+    if columns is None:
+        columns = dict()
+        columns['CID'] = 'CID'
+        columns['RA']  = 'RA'
+        columns['DEC'] = 'DEC'
+        columns['redshift'] = 'redshift'
+        columns['tile'] = 'tile'
+        if simulation:
+            columns['M200_true']= 'M200_true'
+            columns['R200_true']= 'R200_true'
+    return columns
+
+def get_galaxy_cols(columns,simulation=True):
+    if columns is None:
+        columns = dict()
+        columns['HALOID'] = 'HALOID'
+        columns['GID']    = 'GID'
+        columns['RA']     = 'RA'
+        columns['DEC']    = 'DEC'
+        columns['z']      = 'z'
+        columns['zerr']   = 'zerr'
+        columns['Mr']     = 'Mr'
+        columns['mag']    = ['mag_g','mag_r','mag_i','mag_z']
+        columns['magerr'] = ['mag_err_g','mag_err_r','mag_err_i','mag_err_z']
+        columns['tile']   = 'tile'
+        
+        if simulation:
+            columns['z_true']= 'z_true'
+    return columns

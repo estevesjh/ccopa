@@ -85,16 +85,12 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
     # protect against too small of errors => values = 0
     ix = np.nonzero(grerr < 0.02)[0]
     grerr[ix] = 0.02
-    print 'fraction of small errors: gr', 1.*ix/ri.size
 
     ix = np.nonzero(rierr < 0.02)[0]
     rierr[ix] = 0.02
-    print 'fraction of small errors: ri', 1.*ix.size/ri.size
 
     ix = np.nonzero(izerr < 0.02)[0]
     izerr[ix] = 0.02
-    print 'fraction of small errors: iz', 1.*ix.size/ri.size
-    print '\n'
 
     # prepping for output
     nvariables = 27
@@ -239,10 +235,7 @@ def calc_copa_v2(infile, outfile, indir="simha/", lib="miles"):
         # JTA: to make purely distance modulus
         #iabs = i[galaxy] - distanceModulus 
         #fsMass = gstarMass( iabs )
-        if i+2<=size:
-            myidx = np.argsort(-1*weight)
-            print 'probs, chisq', weight[myidx], np.array(chisqs)[myidx]
-
+        
         # saving for output
         out_index.append( index[galaxy])
         out_id.append( ids[galaxy] )

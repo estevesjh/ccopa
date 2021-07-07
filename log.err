@@ -1,234 +1,28 @@
 nohup: ignoring input
 /cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/h5py/__init__.py:36: FutureWarning: Conversion of the second argument of issubdtype from `float` to `np.floating` is deprecated. In future, it will be treated as `np.float64 == np.dtype(float).type`.
   from ._conv import register_converters as _register_converters
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:133: RuntimeWarning: invalid value encountered in double_scalars
   ratio = (Ngals+Nbkg)/( np.sum(Ngals*Pgals) + np.sum(Nbkg*Pbkg) )
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
   prob = np.where(prob>1,1.,prob)
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
   prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
-/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
-  self._data_covariance /= (1 - np.sum(self.weights ** 2))
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
-  r = _umath_linalg.det(a, signature=signature)
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
-  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
+/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:133: RuntimeWarning: invalid value encountered in double_scalars
+  ratio = (Ngals+Nbkg)/( np.sum(Ngals*Pgals) + np.sum(Nbkg*Pbkg) )
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:133: RuntimeWarning: invalid value encountered in double_scalars
   ratio = (Ngals+Nbkg)/( np.sum(Ngals*Pgals) + np.sum(Nbkg*Pbkg) )
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
   prob = np.where(prob>1,1.,prob)
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
   prob = np.where(prob<0.,0.,prob)
+/home/s1/jesteves/git/ccopa/python/copac/gaussianKDE.py:105: RuntimeWarning: invalid value encountered in divide
+  self._data_covariance /= (1 - np.sum(self.weights ** 2))
+/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/numpy/linalg/linalg.py:1874: RuntimeWarning: invalid value encountered in det
+  r = _umath_linalg.det(a, signature=signature)
+/home/s1/jesteves/git/ccopa/python/copac/probColor.py:138: RuntimeWarning: invalid value encountered in less
+  kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
+/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
+  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
 /cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
   return getattr(self.data, op)(other)
 /cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
@@ -237,19 +31,9 @@ nohup: ignoring input
   prob = np.where(prob>1,1.,prob)
 /home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
   prob = np.where(prob<0.,0.,prob)
+/home/s1/jesteves/git/ccopa/python/copac/probColor.py:139: RuntimeWarning: invalid value encountered in divide
+  kde_sub = kde_sub/integrate.trapz(kde_sub,x=values) ## set to unity
+/home/s1/jesteves/git/ccopa/python/copac/probColor.py:167: RuntimeWarning: invalid value encountered in less
+  kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
 /cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
   return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in less
-  return getattr(self.data, op)(other)
-/cvmfs/des.opensciencegrid.org/fnal/anaconda2/envs/des18a/lib/python2.7/site-packages/astropy/table/column.py:954: RuntimeWarning: invalid value encountered in greater
-  return getattr(self.data, op)(other)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:144: RuntimeWarning: invalid value encountered in greater
-  prob = np.where(prob>1,1.,prob)
-/home/s1/jesteves/git/ccopa/python/copac/membAssignment.py:145: RuntimeWarning: invalid value encountered in less
-  prob = np.where(prob<0.,0.,prob)

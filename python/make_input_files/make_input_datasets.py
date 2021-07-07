@@ -150,8 +150,14 @@ def write_bma_dict_temp_files(files,table,nsize,nchunks):
       
 def read_hdf5_file_to_dict(file,cols=None,indices=None,path='/'):
     hf = h5py.File(file, 'r')
-    
-    mygroup = hf[path]
+    #hf.visititems(show_h5_group)
+
+    try:
+        mygroup = hf[path]
+    except:
+        hf.visititems(show_h5_group)
+        print('Error group not found: %s'%path)
+        exit()
 
     if cols is None: cols  = list(mygroup.keys())
     if indices is None: indices = np.arange(0,len(mygroup[cols[0]]),1,dtype=np.int64)
@@ -248,7 +254,7 @@ def select_photoz_catalog(data,fname,group=None):
     if group is None:
         return data
     else:
-        pzcat   = read_hdf5_file_to_dict(fname,cols=None,path='members/%s/'%(group))
+        pzcat   = read_hdf5_file_to_dict(fname,cols=None,path=u'members/%s'%(group))
         idx,    = np.where(np.in1d(pzcat['mid'],data['mid'],assume_unique=True))
         for col in pz_cols:
             arr       = np.array(pzcat[col][:])

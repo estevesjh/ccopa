@@ -117,12 +117,12 @@ def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight
     values = color_vec#(color_vec-u)/s
 
     try:
-        kernel = computeColorKDE(color,weight=probz,silvermanFraction=10)
-        kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,silvermanFraction=10)
+        kernel = computeColorKDE(color,weight=probz,silvermanFraction=5)
+        kernel_bkg = computeColorKDE(color_bkg,weight=probz_bkg,silvermanFraction=5)
     except:
         print('Color Error')
-        kernel = computeColorKDE(color,silvermanFraction=10)
-        kernel_bkg = computeColorKDE(color_bkg,silvermanFraction=10)
+        kernel = computeColorKDE(color,silvermanFraction=5)
+        kernel_bkg = computeColorKDE(color_bkg,silvermanFraction=5)
 
     nc = (ncls-nbkg)
     if nc<0: nbkg = ncls = nc = 1
@@ -136,7 +136,7 @@ def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight
         
         kde_sub = (Ncls_field-Nfield)/nc
         kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-        kde_sub = kde_sub/integrate.trapz(kde_sub,x=values) ## set to unity
+        kde_sub = kde_sub/integrate.simps(kde_sub,x=values) ## set to unity
 
     else:
         nsample = 100
@@ -161,10 +161,10 @@ def backgroundSubtraction(mag,mag_bkg,color_vec,color,color_bkg,ncls,nbkg,weight
             print('Color Error: not enough galaxies')
             kde_sub = (kde-kde_bkg)
             kde_sub = np.where(kde_sub<0,0.,kde_sub) ## we take only the excess
-            kde_sub = kde_sub/integrate.trapz(kde_sub,x=values)
+            kde_sub = kde_sub/integrate.simps(kde_sub,x=values)
             # kde_bkg = np.zeros_like(mag)
     
-    kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
+    # kde_sub = np.where(kde_sub<1e-4,0.,kde_sub)
 
     cbw = kernel.silverman_factor()/10
 

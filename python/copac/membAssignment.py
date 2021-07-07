@@ -587,6 +587,13 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     galIndices = [idx[galFlag[idx]] for idx in toto]
     gal['Gal'] = galFlag    ## all galaxies inside R200 within mag_i <mag_lim
 
+    if simulation:
+        galCut = gal[galFlag].copy()
+        nbkg0, BkgFlag0 = computeContamination(galCut, cat['CID'], raper, np.array(cat['magLim']))
+        Ngals_true      = compute_ngals(galCut, cat['CID'], raper,true_gals=True)
+        
+    nbkg = nbkg0
+
     print('Computing PDFs \n')
     print('-> Radial Distribution')
     rvec = np.linspace(0.,4.,40)
@@ -627,10 +634,6 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     gidx,cidx,galIndices = getIndices(galCut['CID'],cat['CID'][good_clusters])
     galCut = getPDFs(galCut,galIndices,var_list,pdf_list,nbkg[good_clusters],mag_pdf=False)
     galCut = computeProb(galCut, galIndices, norm, nbkg[good_clusters], area_vec)
-
-    if simulation:
-        nbkg0, BkgFlag0 = computeContamination(galCut, cat['CID'], raper, np.array(cat['magLim']))
-        Ngals_true      = compute_ngals(galCut, cat['CID'], raper,true_gals=True)
 
     print('Writing Output: Catalogs  \n')
     print('Writing Galaxy Output')

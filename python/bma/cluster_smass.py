@@ -3,13 +3,6 @@ import h5py
 from joblib import Parallel, delayed
 from astropy.table import Table, join
 
-def match_double_ids():
-    bma = Table([bmid,bcid,mass],names=['mid','CID','mass'])
-    copa= Table([midx,cidx,pmem],names=['mid','CID','Pmem'])
-
-    new_bma = join(copa,bma,keys=['mid','CID'])
-    print 'match size:', len(new_bma)
-
 def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     fmaster = h5py.File(fname,'a')
 
@@ -28,7 +21,7 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     mass = fmaster['members/bma/mass'][:]
     fmaster.close()
 
-    print 'Matching BMA with Copa output'
+    # print 'Matching BMA with Copa output'
     idx = np.sort(midx)
     copa = Table([midx,cidx],names=['mid','CID'])
     main = Table([tmid[idx],tcid[idx],tmem[idx]],names=['mid','CID','True'])
@@ -51,7 +44,7 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     # mu_star     = res[:,0]
     # mu_star_err = res[:,1]
 
-    print 'mu star output size:', mu_star.size
+    # print 'mu star output size:', mu_star.size
 
     fmaster = h5py.File(fname,'a')
     cluster = fmaster['clusters/copa/%s'%run]
@@ -85,13 +78,13 @@ def compute_mu_star(fname,run,nCores=12):
     bcid = fmaster['members/bma/CID'][:]
     mass = fmaster['members/bma/mass'][:]
 
-    print 'Matching BMA with Copa output'
+    # print 'Matching BMA with Copa output'
     bma = Table([bmid,bcid,mass],names=['mid','CID','mass'])
     copa= Table([midx,cidx,pmem],names=['mid','CID','Pmem'])
     nbma = join(copa,bma,keys=['mid','CID']) ## matching with the mid and the cluster ID
     
-    print 'match size:', len(nbma)
-    print 'input size:', pmem.size
+    # print 'match size:', len(nbma)
+    # print 'input size:', pmem.size
 
     keys  = list(chunks_id(nbma['CID'],cid))
     
@@ -103,7 +96,7 @@ def compute_mu_star(fname,run,nCores=12):
     # mu_star     = res[:,0]
     # mu_star_err = res[:,1]
 
-    print 'mu star output size:', mu_star.size
+    # print 'mu star output size:', mu_star.size
 
     if 'MU' not in cluster.keys():
         cluster.create_dataset('MU',data=mu_star)
