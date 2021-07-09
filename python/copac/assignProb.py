@@ -7,12 +7,14 @@ from collections import defaultdict
 class BayesianProbability:
     ''' Assign Membership Probabilities For Copacabana Galaxies
 
-    input: a, b, gal
+    input: alpha, beta, gal
     output: collection('prior','marginal','pdfs','pdfs_field','Pmem','Pr','Pz','Pc')
 
-    a: Estimated number of galaxies inside the cluster area
-    b: Estimated number of field galaxies inside the cluster area
-    gal: table of galaxies, columns: pdf,pdfr,pdfz,pdfc
+    alpha: Estimated number of galaxies inside the cluster area
+    beta: Estimated number of field galaxies inside the cluster area
+    gal: table of galaxies, columns: redshift,pdf,pdfr,pdfz,pdfc and also the field pdfs
+
+    r2: r200, if None use the value from gal
     '''
     def __init__(self, a, b, r2=None):
         self.alpha = np.where(a<=0.,.1,a)
@@ -173,7 +175,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         zgal  = ggal['z']
         zcls  = zggal['redshift']
         zoff  = ggal['zoffset']*(1+zcls)
-        zsig  = ggal['zwindow']
+        zsig  = ggal['zerr']
         color5= ggal['color']
         mag   = ggal['dmag']
         areag = np.pi*r2**2
@@ -185,7 +187,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         gal['pdfr'][idx]     = out1[0]
         gal['pdfr_bkg'][idx] = out1[1]
         
-        out2 = get_photoz_pdf(zgal, zoff, zsig, zvec, pdfzi, pdfzi_bkg,sigma=zwindow)
+        out2 = get_photoz_pdf(zgal, zoff, zsig, zvec, pdfzi, pdfzi_bkg, sigma=zwindow)
         gal['pdfz'][idx]     = out2[0]
         gal['pdfz_bkg'][idx] = out2[1]
         
@@ -196,6 +198,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         gal['pdfm'][idx]     = get_frequency(interpData(mvec,pdfmi,mag))
         gal['pdfm_bkg'][idx] = get_frequency(interpData(mvec,pdfmi_bkg,mag))
 
+        ## choose the color filters: g-r for zcls<0.35 and r-i otherwise
         pdfcii     = get_color_pdf(zcls,pdfci)
         pdfcii_bkg = get_color_pdf(zcls,pdfci_bkg)
 
@@ -211,7 +214,6 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
                 
         ng_profile       = interpData(rvec,pdfr_cfi,radi2,extrapolate=True)
         gal['norm'][idx] = (ng_profile - nb*areag)#/nb
-
     return gal
 
 def gaussian(x,mu,sigma):
@@ -231,7 +233,9 @@ def get_radial_pdf(radii,rvec,pdfr):
     return get_frequency(pdfr_gal), get_frequency(pdfr_bkg)
 
 def get_photoz_pdf(zgal,zoff,zsig,zvec,pdfz,pdfz_field,sigma=0.03):
-    pdfz_gal = gaussian(zoff,0.,zsig)#interpData(rvec,pdfz,zgal,extrapolate=True)
+    ## for a convoluted gaussian: sigma_new^2 = sigma_gal^2+sigma_cls^2
+    sigma_eff= np.sqrt(zsig**2+sigma**2)
+    pdfz_gal = gaussian(zoff,0.,sigma_eff)#interpData(rvec,pdfz,zgal,extrapolate=True)
 
     ## background distribution
     pdfz_bkg   = interpData(zvec,pdfz_field,zgal,extrapolate=True)

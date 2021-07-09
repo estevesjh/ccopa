@@ -139,22 +139,22 @@ def getModel(zvec,zcls,sigma,bias):
     zoff  = (zvec-mean)/(1+zcls)
     pdf = np.where(np.abs(zoff)>=2.*sigma,0.,pdf)
     return pdf 
-    
-def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,zfile=None,bandwidth=0.008,zvec=np.arange(0.,1.,0.005)):
+
+def get_redshift_window(cat,sigma0,zfile=None):
+    if sigma0<0:
+        ## bias and sigma with *(1+z) factor
+        bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename=zfile)
+    else:
+        sigma = sigma0*(1+cat['redshift'])
+        bias  = np.zeros_like(cat['redshift'])
+    return bias, sigma
+
+def computeRedshiftPDF(gals,cat,r200,nbkg,keys,bandwidth=0.008,zvec=np.arange(0.,1.,0.005)):
     ## estimate PDFz
     pdf_cls = []
     pdf_cf = []
     pdf_field = []
-    
-    if sigma<0:
-        # bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename='auxTable/bpz_phtoz_model_cosmoDC2.csv')
-        bias, sigma = hp.look_up_table_photoz_model(cat['redshift'],filename=zfile)
-        #bias  = np.zeros_like(sigma)
-        
-    else:
-        sigma = sigma*np.ones_like(cat['redshift'])
-        bias  = np.zeros_like(cat['redshift'])
-        
+            
     for idx in range(len(cat)):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
@@ -181,7 +181,7 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,zfile=None,bandwidth=0.008,
             k_i = k_i_bkg = k_cf_i = np.ones_like(zvec)
             # pdf_i = pdf_i_bkg = np.ones_like(z_gal)
             
-        k_i = getModel(zvec,z_cls,sigma[idx]*(1+z_cls),bias[idx]*(1+z_cls))
+        k_i = getModel(zvec,z_cls,sigma[idx],bias[idx])
         
         dz=1.
         pdf_cls.append(dz*k_i)

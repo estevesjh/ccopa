@@ -23,6 +23,7 @@ import probColor as probc
 import probMag as probm
 import background as backSub
 import gaussianKDE
+from assignProb import BayesianProbability, getPDFs
 
 h=0.7
 ## -------------------------------
@@ -97,10 +98,8 @@ def initNewColumns(data,colNames,value=-1):
         data[col] = value*np.ones_like(data['CID'])
     return data
 
-def computeNorm(gals,cat,r200,nbkg,maskfrac):
-    norm = []
-    norm_vec = []
-    area_vec = []
+def computeNorm(gals,cat,r200,nbkg,maskfrac,pz0_norm=0.612):
+    norm, norm_vec, area_vec = [],[],[]
     for idx in range(len(cat)):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2, nb = r200[idx], nbkg[idx]
@@ -117,33 +116,18 @@ def computeNorm(gals,cat,r200,nbkg,maskfrac):
         n_cls_field = np.nansum(probz)
         n_gals = n_cls_field-nb*area
 
-        ni = n_gals#/(nb*(np.pi*r2**2))
+        ni = n_gals/pz0_norm
+        
         if ni<0:
             print('norm less than zero:',ni)
         
-        norm_vec_i = _computeNorm(gals[galaxies],r2,nb*(1-fm))
+        norm_vec_i = (_computeNorm(gals[galaxies],r2,nb*(1-fm)))/pz0_norm
 
         area_vec.append(area)
         norm.append(ni)
         norm_vec.append(norm_vec_i)
 
     return np.array(norm), np.array(norm_vec), np.array(area_vec)
-
-def doProb(Pgals,Pbkg,Ngals,Nbkg, normed=True,eps=1e-12):
-    ratio = (Ngals+Nbkg)/( np.sum(Ngals*Pgals) + np.sum(Nbkg*Pbkg) )
-    Pgals *= ratio
-    Pbkg  *= ratio
-    
-    if normed:
-        Pgals /= (Pgals.sum()+eps)
-        Pbkg  /= (Pbkg.sum()+eps)
-    
-    prob = (Ngals*Pgals)/(Ngals*Pgals+Nbkg*Pbkg+eps)
-    # prob[np.isnan(prob)] = 0.
-
-    prob = np.where(prob>1,1.,prob)
-    prob = np.where(prob<0.,0.,prob)
-    return prob
 
 def _computeNorm(gal,r200,nbkg):
     rbins = np.linspace(0.,1.,4)
@@ -324,91 +308,6 @@ def set_color_columns(table):
     table['color'] = color[:,1:]
     return table
 
-def interpData(x,y,x_new,extrapolate=False):
-    # if not extrapolate:
-    # out = np.interp(x_new,x,y,left=0,right=0)
-    # else:
-    out = np.empty(x_new.shape, dtype=y.dtype)
-    out = interp1d(x, y, kind='linear', fill_value='extrapolate', copy=False)(x_new)
-    # yint = interp1d(x,y,kind='linear',fill_value='extrapolate')
-    return out
-
-def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,mag_pdf=False):
-    rvec, zvec, cvec, mvec = vec_list
-    pdfr, pdfz, pdfc, pdfm = pdf_list
-
-    gal = set_new_columns(gal,['pdf','pdfr','pdfz','pdfm','norm'],val=0.)
-    gal = set_new_columns(gal,['pdf_bkg','pdfr_bkg','pdfz_bkg','pdfm_bkg'],val=0.)
-
-    gal['pdfc'] = np.zeros_like(gal['color'])
-    gal['pdfc_bkg'] = gal['pdfc']
-
-    for i, idx in enumerate(galIndices):
-        nb = nbkg[i]
-        ggal = gal[idx] ## group gal
-
-        ## getting pdfs for a given cluster i
-        pdfri, pdfr_cfi  = pdfr[0][i], pdfr[1][i]
-        pdfzi, pdfzi_bkg = pdfz[0][i], pdfz[2][i]
-        pdfci, pdfci_bkg = pdfc[0][i], pdfc[2][i]
-        pdfmi, pdfmi_bkg = pdfm[0][i], pdfm[2][i]
-
-        ## setting galaxies variable columns
-        r2 = ggal['R200'] 
-        radii = ggal['R']
-        zgal  = ggal['z']
-        color5 = ggal['color']
-        mag = ggal['dmag']
-        areag = np.pi*r2**2
-
-        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
-        # areag = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
-
-        gal['pdfr'][idx] = interpData(rvec,pdfri,radii,extrapolate=True)*areag
-        gal['pdfz'][idx] = interpData(zvec,pdfzi,zgal)
-        gal['pdfm'][idx] = interpData(mvec,pdfmi,mag)
-
-        gal['pdfr_bkg'][idx] = np.ones_like(radi2)#/areag #interpData(rvec,np.ones_like(gal['pdfr'][idx]),radii)
-        gal['pdfz_bkg'][idx] = interpData(zvec,pdfzi_bkg,zgal)
-        gal['pdfm_bkg'][idx] = interpData(mvec,pdfmi_bkg,mag)
-
-        for j in range(5):
-            gal['pdfc'][idx,j] = interpData(cvec,pdfci[:,j],color5[:,j])
-            gal['pdfc_bkg'][idx,j] = interpData(cvec,pdfci_bkg[:,j],color5[:,j])
-        
-        gal['pdf'][idx] = gal['pdfr'][idx]*gal['pdfz'][idx]
-        gal['pdf_bkg'][idx] = gal['pdfr_bkg'][idx]*gal['pdfz_bkg'][idx]
-        
-        if mag_pdf:
-            gal['pdf'][idx] *= gal['pdfm'][idx]
-            gal['pdf_bkg'][idx] *= gal['pdfm_bkg'][idx]
-
-        gal['pdfc'][idx,:] = np.where(gal['pdfc'][idx,:]<0.,0.,gal['pdfc'][idx,:])
-        gal['pdfc_bkg'][idx,:] = np.where(gal['pdfc_bkg'][idx,:]<0.,0.,gal['pdfc_bkg'][idx,:])
-
-        # colors: (g-r),(g-i),(r-i),(r-z),(i-z)
-        # pick_colors = [0,1,2,3,4]
-        # for j in pick_colors:
-        #     gal['pdf'][idx] *= gal['pdfc'][idx,j]
-        #     gal['pdf_bkg'][idx] *= gal['pdfc_bkg'][idx,j]
-
-        gal['pdf'][idx] *= np.mean(gal['pdfc'][idx],axis=1)
-        gal['pdf_bkg'][idx] *= np.mean(gal['pdfc_bkg'][idx],axis=1)
-        
-        ng_profile = interpData(rvec,pdfr_cfi,radi2,extrapolate=True)
-        gal['norm'][idx] = (ng_profile - nb*areag)#/nb
-
-    gal['pdf'] = np.where(gal['pdf']<0.,0.,gal['pdf'])
-    gal['pdfr'] = np.where(gal['pdfr']<0.,0.,gal['pdfr'])
-    gal['pdfz'] = np.where(gal['pdfz']<0.,0.,gal['pdfz'])
-    gal['pdfc'] = np.where(gal['pdfc']<0.,0.,gal['pdfc'])
-    gal['pdfm'] = np.where(gal['pdfm']<0.,0.,gal['pdfm'])
-
-    # gal['pdfc'] = np.where(gal['pdfc']<1e-4,0.,gal['pdfc'])
-    # gal['pdfc_bkg'] = np.where(gal['pdfc_bkg']<1e-4,0.,gal['pdfc_bkg'])
-
-    return gal
-
 def getTruthPDFs(gal,cat,r200,indices,rvec,zvec,color_vec,mag_vec,c=3.53,bwz='silverman',bwc=[0.01,0.01,0.1]):
     cids = cat['CID'][:]
 
@@ -531,6 +430,8 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     
     ## taking out h factor
     # gal['R'] *= 0.7
+    print('Geting Redshift Window')
+    bias, sigma = get_redshift_window(cat,sigma_z,zfile=zfile)
 
     print('Computing Galaxy Density')
     ## Compute nbkg
@@ -573,8 +474,8 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
 
     print('-> Redshift Distribution')
     zvec = np.arange(0.,1.2,0.005)        ## vec for the pdfz_cls
-    pdfz_list = probz.computeRedshiftPDF(gal, cat[good_clusters], r200[good_clusters], nbkg[good_clusters], galIndices, sigma_z, 
-                                        zfile=zfile, zvec=zvec, bandwidth=zBW)
+    pdfz_list = probz.computeRedshiftPDF(gal, cat[good_clusters], r200[good_clusters], nbkg[good_clusters], galIndices, 
+                                         zvec=zvec, bandwidth=zBW)
 
     print('-> Color Distribution')
     color_vec = np.arange(-1.,4.5,0.0025) ## vec for the pdfc_cls
@@ -604,13 +505,14 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
 
     # galIndices = list(chunks(galCut['CID'],cat['CID'][good_clusters]))
     gidx,cidx,galIndices = getIndices(galCut['CID'],cat['CID'][good_clusters])
-    galCut = getPDFs(galCut,galIndices,var_list,pdf_list,nbkg[good_clusters],mag_pdf=False)
-    galCut = computeProb(galCut, galIndices, norm, nbkg[good_clusters], area_vec, r200)
+    galCut = getPDFs(galCut,galIndices,var_list,pdf_list,nbkg[good_clusters],sigma[good_clusters],mag_pdf=False)
+    galCut = computeProb(galCut, galIndices, norm, nbkg[good_clusters], area_vec)
 
     print('Writing Output: Catalogs  \n')
     print('Writing Galaxy Output')
-    Colnames=['tile','mid', 'GID', 'CID', 'norm', 'Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 
-              'pdf', 'pdfr_bkg', 'pdfz_bkg', 'pdfc_bkg', 'pdfm_bkg', 'pdf_bkg','z', 'zerr','zoffset','pz0','Rn','theta','dx','dy','R200']
+    # Colnames=['tile','mid', 'GID', 'CID', 'norm', 'Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 
+    #           'pdf', 'pdfr_bkg', 'pdfz_bkg', 'pdfc_bkg', 'pdfm_bkg', 'pdf_bkg','z', 'zerr','zoffset','pz0','Rn','theta','dx','dy','R200']
+    Colnames = galCut.colnames
     galOut = galCut[Colnames]
     
     if member_outfile is not None:
