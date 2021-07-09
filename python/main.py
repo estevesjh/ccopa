@@ -438,8 +438,17 @@ def getOutFile(out):
 def computeNgals(g,cat):
     good_indices, = np.where(cat['Nbkg']>0)
     Ngals = compute_ngals(g,cat['CID'][good_indices],cat['R200'][good_indices],true_gals=False,col='Pmem')
+    Ngalsf= compute_ngals(g,cat['CID'][good_indices],cat['R200'][good_indices],true_gals=False,col='Pmem_flat')
+    Ngalso= compute_ngals(g,cat['CID'][good_indices],cat['R200'][good_indices],true_gals=False,col='Pmem_old')
+
     cat['Ngals'] = -1.
     cat['Ngals'][good_indices] = Ngals
+
+    cat['Ngals_flat'] = -1.
+    cat['Ngals_flat'][good_indices] = Ngalsf
+
+    cat['Ngals_old'] = -1.
+    cat['Ngals_old'][good_indices] = Ngalso
     return cat
 
 def split_chuncks(a,b):

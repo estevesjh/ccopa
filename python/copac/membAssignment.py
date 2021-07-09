@@ -244,7 +244,7 @@ def compute_ptaken(g0):
 		pmem[indices[idx_sort]] = np.array(pm)
 		ptaken[indices[idx_sort]] = pt_group_s
 
-	g0['Pmem'] = pmem
+	g0['Pmem']   = pmem
 	g0['Ptaken'] = ptaken
 
 	return g0
@@ -409,7 +409,7 @@ def group_and_sort_tables(gal,cat):
 ## -------------------------------
 ## main function
 def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfile=None,pixelmap=None,
-                r_in=4, r_out=6, sigma_z=0.05, zfile=None, p_low_lim=0.01, simulation=True, r_aper_model='hod'):
+                r_in=4, r_out=6, sigma_z=0.05, zfile=None, p_low_lim=0., simulation=True, r_aper_model='hod'):
     ##############
     colorBW = [0.05,0.025,0.02]
     zBW = 'silverman'
