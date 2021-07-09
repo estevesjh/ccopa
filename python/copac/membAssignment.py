@@ -453,7 +453,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
 
     ## get keys
     good_clusters = good_clusters0[nbkg[good_clusters0]>=0.]
-    galFlag = (gal['Rn']<=1.)
+    galFlag = (gal['Rn']<=1.)&(gal['zoffset']<=3*sigma[cidx])
 
     #ngals, _, keys, galIndices = backSub.computeGalaxyDensity(gal, cat[good_clusters], raper[good_clusters], nbkg[good_clusters], nslices=72)
     toto = list(chunks(gal['CID'],cat['CID'][good_clusters]))
@@ -474,7 +474,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
 
     print('-> Redshift Distribution')
     zvec = np.arange(0.,1.2,0.005)        ## vec for the pdfz_cls
-    pdfz_list = probz.computeRedshiftPDF(gal, cat[good_clusters], r200[good_clusters], nbkg[good_clusters], galIndices, 
+    pdfz_list = probz.computeRedshiftPDF(gal, cat[good_clusters], r200[good_clusters], nbkg[good_clusters], galIndices, sigma[good_clusters], bias[good_clusters],
                                          zvec=zvec, bandwidth=zBW)
 
     print('-> Color Distribution')
@@ -516,7 +516,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     galOut = galCut[Colnames]
     
     if member_outfile is not None:
-        galOut.write(member_outfile,format='fits', overwrite=True)
+        galOut.write(member_outfile, format='fits', overwrite=True)
     
     print('Writing Cluster Output \n')
     ### writing cluster catalogs

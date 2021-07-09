@@ -137,7 +137,7 @@ def getModel(zvec,zcls,sigma,bias):
         pdf = gaussian(zvec,mean,sigma)
 
     zoff  = (zvec-mean)/(1+zcls)
-    pdf = np.where(np.abs(zoff)>=2.*sigma,0.,pdf)
+    pdf = np.where(np.abs(zoff)>=3.*sigma,0.,pdf)
     return pdf 
 
 def get_redshift_window(cat,sigma0,zfile=None):
@@ -149,7 +149,7 @@ def get_redshift_window(cat,sigma0,zfile=None):
         bias  = np.zeros_like(cat['redshift'])
     return bias, sigma
 
-def computeRedshiftPDF(gals,cat,r200,nbkg,keys,bandwidth=0.008,zvec=np.arange(0.,1.,0.005)):
+def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bias,bandwidth=0.008,zvec=np.arange(0.,1.,0.005)):
     ## estimate PDFz
     pdf_cls = []
     pdf_cf = []
