@@ -163,64 +163,36 @@ def _computeNorm(gal,r200,nbkg):
         norm = -1.*np.ones_like(Nbkg)
     return norm
 
-def computeProb(gal, keys, norm, nbkg, area_vec, eps=1e-12):
-    gal = set_new_columns(gal,['Pmem','Pc','Pz','Pr'],val=0.)
+def computeProb(gal, keys, norm, nbkg, area_vec):
+    ## init new columns
+    gal = set_new_columns(gal,['Pmem','Pr','Pz','Pc'],val=0.)
+    gal = set_new_columns(gal,['Pmem_flat','Pr_flat','Pz_flat','Pc_flat'],val=0.)
+    gal = set_new_columns(gal,['Pmem_old','Pr_old','Pz_old','Pc_old'],val=0.)
 
-    pdfr, pdfz, pdfc, pdf = gal['pdfr'], gal['pdfz'], gal['pdfc'], gal['pdf']
-    pdfr_bkg, pdfz_bkg, pdfc_bkg, pdf_bkg = gal['pdfr_bkg'], gal['pdfz_bkg'], gal['pdfc_bkg'], gal['pdf_bkg']
+    Nc = cat['Norm']/area_vec
+    Nf = cat['Nbkg']
 
-    zcls = gal['redshift']
-    pdfc = np.where(zcls<0.35, gal['pdfc'][:,0], gal['pdfc'][:,2])
-    pdfc_bkg = np.where(zcls<0.35, gal['pdfc_bkg'][:,0], gal['pdfc_bkg'][:,2])
+    alpha = np.array(Nc).copy()
+    beta  = np.array(Nf).copy()
 
-    probz = gal['pz0']
-    rbins = np.linspace(0.,1.,4)
-    rmed = (rbins[1:]-rbins[:-1])/2.
-    for i,idx in enumerate(keys):
-        # ni = gal['norm'][idx]
-        ni = norm[i]
-        nb = nbkg[i]
-        # radii = gal['Rn'][idx]
-
-        radii = gal['R'][idx]
-        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
-        # area  = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
-
-        area = area_vec[i]#float( np.unique(np.pi*(gal['R200'][idx])**2)[0] )
-        Nb = nb*area
-
-        pz0 = 1#probz[idx]
-        pz0b= 1#(1-pz0)
-
-        pdfri, pdfzi, pdfci = pdfr[idx], pdfz[idx], pdfc[idx]
-        pdfr_bkg_i, pdfz_bkg_i, pdfc_bkg_i = pdfr_bkg[idx], pdfz_bkg[idx], pdfc_bkg[idx]
-        
-        # pdfz_bkg_i = pdfz_bkg_i*np.max(pdfz_bkg_i)/np.max(pdfzi)
-        
-        pn = np.sum(pdfri),np.sum(pdfzi),np.sum(pdfci)
-        pn_bkg = np.sum(pdfr_bkg_i),np.sum(pdfz_bkg_i),np.sum(pdfc_bkg_i)
-
-        Lgals     =  pdfri*pdfzi*pdfci*(np.sum(pn))/np.sum(pdfri*pdfzi*pdfci + eps)#np.product(pn)#
-        Lgals_bkg = pdfr_bkg_i*pdfz_bkg_i*pdfc_bkg_i*(np.sum(pn_bkg))/np.sum(pdfr_bkg_i*pdfz_bkg_i*pdfc_bkg_i +eps)#(np.product(pn_bkg))##(np.product(pn_bkg))
-        
-        Lgals     = np.where(Lgals>1e6,0.,Lgals)
-        Lgals_bkg = np.where(Lgals_bkg>1e6,0.,Lgals_bkg)
-
-        # factor = np.sum(pz0)/(np.sum(pz0)+np.sum(pz0b))
-        # pz0 *= factor
-
-        # print('factor: %.3f'%factor)
-        pr = doProb(pz0*pdfri,pz0b*pdfr_bkg_i, ni, Nb)
-        pz = doProb(    pdfzi, pdfz_bkg_i, ni, Nb)
-        pc = doProb(pz0*pdfci,pz0b*pdfc_bkg_i, ni, Nb)
-
-        pmem = doProb(pz0*Lgals, pz0b*Lgals_bkg, ni, Nb, normed=False) #normed is used to normalize the prob. for the 3 PDFs
-
-        gal['Pmem'][idx] = pmem
-        gal['Pc'][idx] = pc
-        gal['Pz'][idx] = pz
-        gal['Pr'][idx] = pr
-
+    ## compute the new probabilities
+    ncls = len(nbkg)
+    res  = []
+    for i in range(ncls):
+        print('alpha,beta: %.2f ,%.2f'%(alpha[i],beta[i]))
+        b = BayesianProbability(alpha[i],beta[i])
+        b.assign_probabilities(gal[keys[i]])
+        res.append(b.prob)
+        del b
+    
+    ## plug   into the table
+    ## assign the new probabilities
+    for i in range(ncls):
+        for col in ['Pmem','Pr','Pz','Pc']:
+            gal[col][keys[i]]  = res[i][col]['beta'][:]
+            gal[col+'_flat'][keys[i]]  = res[i][col]['flat'][:]
+            gal[col+'_old'][keys[i]]  = res[i][col]['old'][:]
+    
     return gal
 
 def computeContamination(gal,keys,r200,magLim):
@@ -633,7 +605,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
     # galIndices = list(chunks(galCut['CID'],cat['CID'][good_clusters]))
     gidx,cidx,galIndices = getIndices(galCut['CID'],cat['CID'][good_clusters])
     galCut = getPDFs(galCut,galIndices,var_list,pdf_list,nbkg[good_clusters],mag_pdf=False)
-    galCut = computeProb(galCut, galIndices, norm, nbkg[good_clusters], area_vec)
+    galCut = computeProb(galCut, galIndices, norm, nbkg[good_clusters], area_vec, r200)
 
     print('Writing Output: Catalogs  \n')
     print('Writing Galaxy Output')

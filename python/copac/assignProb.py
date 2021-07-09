@@ -14,7 +14,7 @@ class BayesianProbability:
     b: Estimated number of field galaxies inside the cluster area
     gal: table of galaxies, columns: pdf,pdfr,pdfz,pdfc
     '''
-    def __init__(self, a, b, r2=1):
+    def __init__(self, a, b, r2=None):
         self.alpha = np.where(a<=0.,.1,a)
         self.beta  = b
         self.r2    = r2
@@ -27,6 +27,7 @@ class BayesianProbability:
         self.compute_flat_prior()
 
     def load_pdfs(self,gal):
+        if self.r2 is None: self.r2 = float(gal['R200'][0])
         zcls = np.array(gal['redshift']).copy()
         
         self.pdfz = np.array(gal['pdfz'][:]).copy()
@@ -37,8 +38,8 @@ class BayesianProbability:
         self.pdfrf= np.array(gal['pdfr_bkg'][:]).copy()*(np.pi*self.r2**2)
         self.pdfcf= get_color_pdf(zcls,gal['pdfc_bkg'][:]).copy()
         
-        self.pdf = filter_3pdf(self.pdfz,self.pdfc,self.pdfr)
-        self.pdff= filter_3pdf(self.pdfzf,self.pdfcf,self.pdfrf)
+        self.pdf = np.array(gal['pdf'][:]).copy()
+        self.pdff= np.array(gal['pdf_bkg'][:]).copy()
         
     def compute_flat_prior(self):
         pm0 = self.betaDist.mean()
@@ -51,11 +52,11 @@ class BayesianProbability:
         res    = pf*pm0 + pff*(1-pm0)
         self.prob['marginal'][name] = res.copy()
     
-    def compute_prob(self,label,name,prior_type,eps=1e-9):
+    def compute_prob(self,label,name,prior_type,eps=1e-12):
         pm0 = self.prob['prior'][prior_type]
         pdf,pdff = self.pick_pdf(name)
         mar = pdf*pm0 + pdff*(1-pm0)
-        res = pdf*pm0/(mar+eps)
+        res = pdf*pm0/mar
         pmem= filter_prob(res.copy())
         self.prob[label][prior_type] = pmem.copy()
     
@@ -69,6 +70,9 @@ class BayesianProbability:
         self.likelihood = get_likelihood(self.pvec,p0,pdf,nbins=nbins)
     
     def compute_beta_prior(self):
+        ## assumes a likelihood that only depends on R
+        self.compute_likelihood()
+
         prior = join_pdfs(self.pvec,self.likelihood,self.betaDist.pdf(self.pvec))
         pm0   = mean_pdf(self.pvec,prior)
 
@@ -115,7 +119,6 @@ class BayesianProbability:
             self.assign_prob(name,label,'flat')
 
         ## estimating beta prior
-        self.compute_likelihood()
         self.compute_beta_prior()
         
         ## memb. prob. beta prior
@@ -141,6 +144,111 @@ class BayesianProbability:
         plt.xlabel("Prior")
         plt.ylabel('Density')
         pass
+
+def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
+    rvec, zvec, cvec, mvec = vec_list
+    pdfr, pdfz, pdfc, pdfm = pdf_list
+
+    gal = set_new_columns(gal,['pdf','pdfr','pdfz','pdfm','norm'],val=0.)
+    gal = set_new_columns(gal,['pdf_bkg','pdfr_bkg','pdfz_bkg','pdfm_bkg'],val=0.)
+
+    gal['pdfc'] = np.zeros_like(gal['color'])
+    gal['pdfc_bkg'] = gal['pdfc']
+
+    for i, idx in enumerate(galIndices):
+        nb      = nbkg[i]
+        zwindow = sigma[i]
+
+        ggal = gal[idx] ## group gal
+
+        ## getting pdfs for a given cluster i
+        pdfri, pdfr_cfi  = pdfr[0][i], pdfr[1][i]
+        pdfzi, pdfzi_bkg = pdfz[0][i], pdfz[2][i]
+        pdfci, pdfci_bkg = pdfc[0][i], pdfc[2][i]
+        pdfmi, pdfmi_bkg = pdfm[0][i], pdfm[2][i]
+
+        ## setting galaxies variable columns
+        r2    = ggal['R200'] 
+        radii = ggal['R']
+        zgal  = ggal['z']
+        zcls  = zggal['redshift']
+        zoff  = ggal['zoffset']*(1+zcls)
+        zsig  = ggal['zwindow']
+        color5= ggal['color']
+        mag   = ggal['dmag']
+        areag = np.pi*r2**2
+
+        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
+        # areag = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
+
+        out1 = get_radial_pdf(radii,rvec,pdfri)
+        gal['pdfr'][idx]     = out1[0]
+        gal['pdfr_bkg'][idx] = out1[1]
+        
+        out2 = get_photoz_pdf(zgal, zoff, zsig, zvec, pdfzi, pdfzi_bkg,sigma=zwindow)
+        gal['pdfz'][idx]     = out2[0]
+        gal['pdfz_bkg'][idx] = out2[1]
+        
+        for j in range(5):
+            gal['pdfc'][idx,j] = get_frequency(interpData(cvec,pdfci[:,j],color5[:,j]))
+            gal['pdfc_bkg'][idx,j] = get_frequency(interpData(cvec,pdfci_bkg[:,j],color5[:,j]))
+
+        gal['pdfm'][idx]     = get_frequency(interpData(mvec,pdfmi,mag))
+        gal['pdfm_bkg'][idx] = get_frequency(interpData(mvec,pdfmi_bkg,mag))
+
+        pdfcii     = get_color_pdf(zcls,pdfci)
+        pdfcii_bkg = get_color_pdf(zcls,pdfci_bkg)
+
+        models       = [gal['pdfr'][idx],gal['pdfz'][idx],pdfcii]
+        models_field = [gal['pdfr_bkg'][idx],gal['pdfz_bkg'][idx],pdfcii_bkg]
+        
+        if mag_pdf:
+            models.append(gal['pdfm'][idx])
+            models_field.append(gal['pdfm_bkg'][idx])
+
+        gal['pdf'][idx]     = get_full_pdf(models)
+        gal['pdf_bkg'][idx] = get_full_pdf(models_field)
+                
+        ng_profile       = interpData(rvec,pdfr_cfi,radi2,extrapolate=True)
+        gal['norm'][idx] = (ng_profile - nb*areag)#/nb
+
+    return gal
+
+def gaussian(x,mu,sigma):
+    return np.exp(-(x-mu)**2/(2*sigma**2))/(sigma*np.sqrt(2*np.pi))
+
+def get_frequency(pdf,eps=1e-12):
+    pdfn = np.where(pdf<0.,0.,pdf)
+    norm = np.sum(pdfn)
+    if norm>0.: pdfn = 100*pdfn/norm
+    return pdfn
+
+def get_radial_pdf(radii,rvec,pdfr):
+    pdfr_gal = interpData(rvec,pdfr,radii,extrapolate=True)
+    pdfr_bkg = np.ones_like(radii)
+    
+    pdfr_gal = np.where(pdfr_gal<0.,0.,pdfr_gal)
+    return get_frequency(pdfr_gal), get_frequency(pdfr_bkg)
+
+def get_photoz_pdf(zgal,zoff,zsig,zvec,pdfz,pdfz_field,sigma=0.03):
+    pdfz_gal = gaussian(zoff,0.,zsig)#interpData(rvec,pdfz,zgal,extrapolate=True)
+
+    ## background distribution
+    pdfz_bkg   = interpData(zvec,pdfz_field,zgal,extrapolate=True)
+    pdfz_bkg   = np.where(pdfz_bkg<0.,0.,pdfz_bkg)
+
+    ## only galaxies inside 3*sigma
+    cut = np.abs(zoff)<=3*sigma
+    pdfz_gal[np.logical_not(cut)] = 0.
+    pdfz_bkg[np.logical_not(cut)] = 0.
+
+    return get_frequency(pdfz_gal), get_frequency(pdfz_bkg)
+
+def get_full_pdf(params):
+    res = params[0]
+    for j in params[1:]:
+        res*=j
+    return get_frequency(res)
 
 def interpData(x,y,x_new):
     out = interp1d(x, y, kind='linear', fill_value='extrapolate')
@@ -176,11 +284,12 @@ def bin_data(x,y,nbins=20):
         i+=1
     return xbins,xmean,ymean
 
-def filter_prob(x,val=0):
-    x[np.isnan(x)]=0
+def filter_prob(x):
+    x[np.isnan(x)]=0.
     x = np.where(x<0,0.,x)
     x = np.where(x>1,1.,x)
     return x
+
 def filter_pdf(pdf):
     pdf = np.where(pdf>1e6,1e6,pdf)
     return pdf
@@ -199,7 +308,10 @@ def filter_3pdf(x,y,z,norm=True):
 ## to do: smooth the color pdfs 
 ## https://stackoverflow.com/questions/20618804/how-to-smooth-a-curve-in-the-right-way
 def get_color_pdf(zcls,pdfc):
-    return np.array(np.where(zcls<0.35,pdfc[:,0],pdfc[:,2]))
+    out = np.array(np.where(zcls<0.35,pdfc[:,0],pdfc[:,2]))
+    out = np.where(out<0.,0.,out)
+    return get_frequency(out)
+    
 #     return np.ones_like(pdfc[:,0])
 
 def profileNFW(R,R200,c=3):
@@ -227,7 +339,7 @@ def radial_pdf(radii,R200,c=3.5,rc=0.2):
     return density
 
 ### To Remove
-def doProb(Pgals,Pbkg,Ngals,Nbkg, normed=True,eps=1e-12):
+def doProb(Pgals,Pbkg,Ngals,Nbkg, normed=True, eps=1e-12):
     ratio = (Ngals+Nbkg)/( np.sum(Ngals*Pgals) + np.sum(Nbkg*Pbkg) )
     Pgals *= ratio
     Pbkg  *= ratio
@@ -255,13 +367,13 @@ def set_new_columns(table,columns,val=0.):
     return table
 
 ### Assign Probs
-def main(cat,gal):
+def main(cat,gal,norm=0.618):
     ncls    = len(cat)
 
     r200 = np.array(cat['R200']).copy()
     area = np.array(np.pi*r200**2).copy()
 
-    Nc = cat['Norm']
+    Nc = cat['Norm']*norm
     Nf = cat['Nbkg']*area
 
     alpha = np.array(Nc).copy()
@@ -269,7 +381,6 @@ def main(cat,gal):
 
     cids = np.array(cat['CID'])
     gids = np.array(gal['CID'])
-    r200 = np.array(cat['R200'])
     keys = list(chunks(gids,cids))
 
     ## compute the new probabilities
@@ -278,109 +389,18 @@ def main(cat,gal):
         print('alpha,beta: %.2f ,%.2f'%(alpha[i],beta[i]))
         b = BayesianProbability(alpha[i],beta[i],r2=r200[i])
         b.assign_probabilities(gal[keys[i]])
-        b.compute_ngals()
-        
+
         res.append(b.prob)
         del b
     
     ## assign into the table
     ## assign the new probabilities
     gal = set_new_columns(gal,['Pmem','Pr','Pz','Pc'],val=0.)
-    #cat = set_new_columns(cat,['Ngals_%s'%c for c in columns],val=-99.)
 
     for i in range(ncls):
         for col in ['Pmem','Pr','Pz','Pc']:
             gal[col][keys[i]]  = res[i][col]['beta'][:]
             gal[col+'_flat'][keys[i]]  = res[i][col]['flat'][:]
             gal[col+'_old'][keys[i]]  = res[i][col]['old'][:]
-            #cat['Ngals'][i]    = res[i]['Ngals']['beta']
-
-
-###################### Rewrite Get PDF
-def get_frequency(pdf,eps=1e-12):
-    pdfn = np.where(pdf<0.,0.,pdf)
-    norm = np.sum(pdfn)
-    if norm>0.: pdfn = 100*pdfn/norm
-    return pdfn
-
-def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,mag_pdf=False):
-    rvec, zvec, cvec, mvec = vec_list
-    pdfr, pdfz, pdfc, pdfm = pdf_list
-
-    gal = set_new_columns(gal,['pdf','pdfr','pdfz','pdfm','norm'],val=0.)
-    gal = set_new_columns(gal,['pdf_bkg','pdfr_bkg','pdfz_bkg','pdfm_bkg'],val=0.)
-
-    gal['pdfc'] = np.zeros_like(gal['color'])
-    gal['pdfc_bkg'] = gal['pdfc']
-
-    for i, idx in enumerate(galIndices):
-        nb = nbkg[i]
-        ggal = gal[idx] ## group gal
-
-        ## getting pdfs for a given cluster i
-        pdfri, pdfr_cfi  = pdfr[0][i], pdfr[1][i]
-        pdfzi, pdfzi_bkg = pdfz[0][i], pdfz[2][i]
-        pdfci, pdfci_bkg = pdfc[0][i], pdfc[2][i]
-        pdfmi, pdfmi_bkg = pdfm[0][i], pdfm[2][i]
-
-        ## setting galaxies variable columns
-        r2 = ggal['R200'] 
-        radii = ggal['R']
-        zgal  = ggal['z']
-        color5 = ggal['color']
-        mag = ggal['dmag']
-        areag = np.pi*r2**2
-
-        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
-        # areag = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
-
-        gal['pdfr'][idx] = interpData(rvec,get_frequency(pdfri),radii,extrapolate=True)*areag
-        gal['pdfz'][idx] = interpData(zvec,get_frequency(pdfzi),zgal)
-        gal['pdfm'][idx] = interpData(mvec,get_frequency(pdfmi),mag)
-
-        gal['pdfr_bkg'][idx] = np.ones_like(radi2)#/areag #interpData(rvec,np.ones_like(gal['pdfr'][idx]),radii)
-        gal['pdfz_bkg'][idx] = interpData(zvec,get_frequency(pdfzi_bkg),zgal)
-        gal['pdfm_bkg'][idx] = interpData(mvec,get_frequency(pdfmi_bkg),mag)
-
-        for j in range(5):
-            gal['pdfc'][idx,j] = interpData(cvec,get_frequency(pdfci[:,j]),color5[:,j])
-            gal['pdfc_bkg'][idx,j] = interpData(cvec,get_frequency(pdfci_bkg[:,j]),color5[:,j])
-        
-        gal['pdf'][idx] = gal['pdfr'][idx]*gal['pdfz'][idx]
-        gal['pdf_bkg'][idx] = gal['pdfr_bkg'][idx]*gal['pdfz_bkg'][idx]
-        
-        if mag_pdf:
-            gal['pdf'][idx] *= gal['pdfm'][idx]
-            gal['pdf_bkg'][idx] *= gal['pdfm_bkg'][idx]
-
-        # gal['pdfc'][idx,:] = np.where(gal['pdfc'][idx,:]<0.,0.,gal['pdfc'][idx,:])
-        # gal['pdfc_bkg'][idx,:] = np.where(gal['pdfc_bkg'][idx,:]<0.,0.,gal['pdfc_bkg'][idx,:])
-
-        # colors: (g-r),(g-i),(r-i),(r-z),(i-z)
-        # pick_colors = [0,1,2,3,4]
-        # for j in pick_colors:
-        #     gal['pdf'][idx] *= gal['pdfc'][idx,j]
-        #     gal['pdf_bkg'][idx] *= gal['pdfc_bkg'][idx,j]
-
-        pdfc = np.where(zcls<0.35, gal['pdfc'][:,0], gal['pdfc'][:,2])
-        pdfc_bkg = np.where(zcls<0.35, gal['pdfc_bkg'][:,0], gal['pdfc_bkg'][:,2])
-
-
-        gal['pdf'][idx] *= np.mean(gal['pdfc'][idx],axis=1)
-        gal['pdf_bkg'][idx] *= np.mean(gal['pdfc_bkg'][idx],axis=1)
-        
-        ng_profile = interpData(rvec,pdfr_cfi,radi2,extrapolate=True)
-        gal['norm'][idx] = (ng_profile - nb*areag)#/nb
-
-    gal['pdf'] = np.where(gal['pdf']<0.,0.,gal['pdf'])
-    gal['pdfr'] = np.where(gal['pdfr']<0.,0.,gal['pdfr'])
-    gal['pdfz'] = np.where(gal['pdfz']<0.,0.,gal['pdfz'])
-    gal['pdfc'] = np.where(gal['pdfc']<0.,0.,gal['pdfc'])
-    gal['pdfm'] = np.where(gal['pdfm']<0.,0.,gal['pdfm'])
-
-    # gal['pdfc'] = np.where(gal['pdfc']<1e-4,0.,gal['pdfc'])
-    # gal['pdfc_bkg'] = np.where(gal['pdfc_bkg']<1e-4,0.,gal['pdfc_bkg'])
-
+    
     return gal
-
-def pick_pdf_color():
