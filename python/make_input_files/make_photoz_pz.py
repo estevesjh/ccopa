@@ -99,7 +99,7 @@ class photoz_model:
         self.data['zoffset']= zoffset
         self.data['zwindow']= zwindow*np.ones_like(z_noise)
 
-    def model_photoz_bias(self):
+    def model_photoz_bias(self,exp_factor=True):
         zcls = self.data['redshift']
 
         ## make corrections
@@ -109,6 +109,9 @@ class photoz_model:
             
             bias      = np.interp(zcls,zb,mean)
             zwindow_z = np.interp(zcls,zb,sigma) ##np.interp(zcls,zb,sigma)
+
+            if exp_factor:
+                zwindow_z *= (1+zcls)
             
             self.data['zoffset'] = self.data['zoffset']-bias
             self.data['zwindow'] = zwindow_z
@@ -119,9 +122,9 @@ class photoz_model:
         ## method default is probabilistic
         d   = self.data
         if method is None:
-            pz0 = compute_pdfz_parallel(d['CID'][:],d['zoffset'][:],d['zerr'][:],d['redshift'][:],d['zwindow'][:],nCores=nCores)
+            pz0 = compute_pdfz_parallel(d['CID'][:],d['z'][:],d['zerr'][:],d['redshift'][:],d['zwindow'][:],nCores=nCores)
         else:
-            pz0 = np.where(d['zoffset']<=1.5*d['zwindow']/(1+d['redshift']),1.,0.)
+            pz0 = np.where(d['zoffset']<=3.*d['zwindow']/(1+d['redshift']),1.,0.)
 
         self.data['pz0']    = pz0
         pass
@@ -197,14 +200,14 @@ def compute_pdfz_bpz(pdfz,zcls,sigma):
 #     pz = np.where(np.abs(zoffset) >= 3*sigma, 0., pz/np.max(pz))
 #     return pz
 
-def compute_pdfz(zoffset,membzerr,sigma,zcls,npoints=1000,correction=True):
+def compute_pdfz(membz,membzerr,sigma,zcls,npoints=1000,correction=True):
     ''' Computes the probability of a galaxy be in the cluster
         for an interval with width n*windows. 
         Assumes that the galaxy has a gaussian redshift PDF.
 
         npoints=1000 # it's accurate in 2%% level
     '''  
-    zmin, zmax = -5*sigma, 5*sigma
+    zmin, zmax = zcls-5*sigma, zcls+5*sigma
     #zmin = check_boundaries(zmin,zcls)
     
     ## photo-z floor
@@ -212,32 +215,31 @@ def compute_pdfz(zoffset,membzerr,sigma,zcls,npoints=1000,correction=True):
 
     ## multi dymensional arrays
     z       = np.linspace(zmin,zmax,npoints)
-    zz, yy  = np.meshgrid(z,np.array(zoffset)*(1+zcls)) ## dz = z-z_cls; zoffset = (z-z_cls)/(1+z_cls) 
+    #zz, yy  = np.meshgrid(z,np.array(zoffset)*(1+zcls)) ## dz = z-z_cls; zoffset = (z-z_cls)/(1+z_cls) 
+    zz, yy  = np.meshgrid(z,np.array(membz))
     zz, yy2 = np.meshgrid(z,np.array(membzerr))
     
-    ## assuming sigma_gal=sigma_cls:  the conv(pdf_gal,pdf_cls)-> N(mean=zp-zc,sigma=sigma0*np.sqrt(2))
-    ## yy2 = np.sqrt(2)*yy2
-    
     if correction:
-        pdfz = gaussian_corrected(zz,yy,yy2)
-        pdfz_max = gaussian_corrected(z,np.zeros_like(z),sigma)
+        # pdfz = gaussian_corrected(zz,yy, np.sqrt(yy2**2+sigma**2)/(1+zcls) )
+        pdfz = gaussian_corrected(zz,yy,yy2/(1+zcls))
+        pdfz_max = gaussian_corrected(z,zcls,sigma/(1+zcls))
             
     else:
         pdfz = gaussian(zz,yy,yy2)
-        pdfz_max = gaussian(z,np.zeros_like(z),sigma)
+        pdfz_max = gaussian(z,np.zcls,sigma)
     
-    w,  = np.where( np.abs(z) <= 1.5*sigma) ## integrate in 1.5*sigma
+    w,  = np.where( np.abs(z-zcls) <= 2.*sigma) ## integrate in 1.5*sigma
     p0 = integrate.trapz(pdfz[:,w],x=zz[:,w])
     
     pmax = integrate.trapz(pdfz_max[w],x=z[w])
     pz   = p0/pmax
 
     ## get out with galaxies outside 3 sigma
-    pz = np.where(np.abs(zoffset) >= 3.*sigma, 0., pz)
+    pz = np.where(np.abs(membz-zcls) >= 2.*sigma, 0., pz)
 
-    return pz/0.84
+    return pz
 
-def compute_pdfz_parallel(cidxs,zoffset,zerr,zcls,zwindow,nCores=40,npoints=1000,pdfz=None):
+def compute_pdfz_parallel(cidxs,z,zerr,zcls,zwindow,nCores=40,npoints=1000,pdfz=None):
     cids,indices = np.unique(cidxs,return_index=True)
     zcls    = zcls[indices]
     zwindow = zwindow[indices]
@@ -248,10 +250,10 @@ def compute_pdfz_parallel(cidxs,zoffset,zerr,zcls,zwindow,nCores=40,npoints=1000
     keys   = list(chunks(cidxs,cids))
     pz_out = np.zeros((ngals,),dtype=np.float64)
 
-    zoffset_group = group_by(zoffset,keys)
+    z_group = group_by(z,keys)
     zerr_group    = group_by(zerr,keys)
 
-    out    = Parallel(n_jobs=nCores)(delayed(compute_pdfz)(zoffset_group[i], zerr_group[i], zwindow[i], zcls[i],
+    out    = Parallel(n_jobs=nCores)(delayed(compute_pdfz)(z_group[i], zerr_group[i], zwindow[i], zcls[i],
                                                            npoints=npoints) for i in range(len(keys)))
     
     for i,idx in enumerate(keys):

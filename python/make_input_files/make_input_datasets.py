@@ -164,8 +164,7 @@ def read_hdf5_file_to_dict(file,cols=None,indices=None,path='/'):
 
     mydict= dict().fromkeys(cols)
     for col in cols:
-        arr         = np.array(mygroup[col][:])
-        mydict[col] = arr[indices]
+        mydict[col] = np.array(mygroup[col][:][indices])
     
     hf.close()
 
@@ -215,22 +214,23 @@ def wrap_up_temp_files(fname,files,path='members/bma/',overwrite=False):
     return nmissing
 
 
-
-
 ### copa
 def load_copa_input_catalog(fname,kwargs,pz_file=None,simulation=True):
     print('loading clusters')
     cdata = load_cluster_main_catalog(fname)
-    
+
+    print('apply magnitude selection')
+    indices = apply_magnitude_selection(fname,kwargs)
+
     print('loading full members catalog')
-    mydict = read_hdf5_file_to_dict(fname,cols=None,path='members/main/') ## None load all columns
+    mydict = read_hdf5_file_to_dict(fname,cols=None,indices=indices,path='members/main/') ## None load all columns
 
     print('making color columns')
     mydict = set_color_columns(mydict)
 
     if simulation:
         print('selecting fake photo-z catalog')
-        mydict = select_photoz_catalog(mydict,fname,group=pz_file)
+        mydict= select_photoz_catalog(mydict,fname,group=pz_file)
 
     print('making galaxies cut')
     mydict1 = make_galaxies_cut(mydict,kwargs)
@@ -249,8 +249,17 @@ def load_copa_input_catalog(fname,kwargs,pz_file=None,simulation=True):
     
     return table, cdata
 
+def apply_magnitude_selection(fname,kwargs):
+    if kwargs['mag_selection'] is None:
+        out = read_hdf5_file_to_dict(fname,cols=['dmag'],path='members/main/')
+        indices = np.where(out['dmag'][:]<=kwargs['dmag_lim'])[0]
+    else:
+        out = read_hdf5_file_to_dict(fname,cols=[kwargs['mag_selection']],path='members/indices/')
+        indices = out[kwargs['mag_selection']][:]
+    return indices.astype(int)
+
 def select_photoz_catalog(data,fname,group=None):
-    pz_cols = ['z','zerr','pz0','zoffset']
+    pz_cols = ['z','zerr','pz0','zoffset','zwindow']
     if group is None:
         return data
     else:
@@ -331,7 +340,6 @@ def make_galaxies_cut(mydict,kwargs):
     rmax    = 3.
     rin     = kwargs['r_in']
     rout    = kwargs['r_out']
-    dmaglim = kwargs['dmag_lim']
     dz_max  = kwargs['dz_max']
     zmax    = kwargs['zmax_gal']
     zmin    = kwargs['zmin_gal']
@@ -339,11 +347,9 @@ def make_galaxies_cut(mydict,kwargs):
     radii   = mydict['R']*h
     zgal    = mydict['z']
     zoff    = mydict['zoffset']
-    dmag    = mydict['dmag']
     color   = mydict['color'][:]
 
     mask  = (radii<=rout)
-    mask &= (dmag<=dmaglim)
     mask &= (zgal>=zmin)&(zgal<=zmax)
     # mask &= (np.abs(zoff)<=dz_max)
     mask &= (color[:,0]<=3.5)&(color[:,3]<=3.5)&(color[:,4]<=3.5)

@@ -8,8 +8,8 @@ from main import copacabana
 from make_input_files.make_photoz_pz import generate_photoz_models
 
 t0 = time()
-#cfg = '/home/s1/jesteves/git/ccopa/config_files/config_buzzard_v2.yaml'
-#copa = copacabana(cfg,dataset='buzzard_v2')
+# cfg = '/home/s1/jesteves/git/ccopa/config_files/config_buzzard_v2.yaml'
+# copa = copacabana(cfg,dataset='buzzard_v2')
 
 cfg = '/home/s1/jesteves/git/ccopa/config_files/config_copa_dc2.yaml'
 copa = copacabana(cfg)
@@ -19,18 +19,22 @@ copa.kwargs['r_aper_model'] = 'r200'
 copa.kwargs['z_window']     = 0.03
 
 # generate_photoz_models('gaussian',[copa.master_fname],0.03,
+#                        group_name='guass003-corr2',nCores=60)
+
+copa.run_copa('%s-r200-ztest'%('gauss003-v2'),pz_file=u'guass003-corr2', nCores=60)
+copa.compute_muStar('%s-r200-ztest'%('gauss003-v2'), overwrite=True)
+
+# generate_photoz_models('gaussian',copa.master_fname_tile_list,0.03,
 #                        group_name='guass003-corr',nCores=60)
+
+# copa.run_copa_healpix('%s-r200-ztest'%('gauss003-v2'),pz_file=u'guass003-corr', nCores=60)
+# copa.compute_muStar('%s-r200-ztest'%('gauss003-v2'), overwrite=True)
 
 # generate_photoz_models('gaussian',[copa.master_fname],0.03,
 #                        group_name='guass003-counts',method='counts',nCores=60)
-
-#copa.run_copa('%s-r200-ztest'%('gauss003-bkg'),pz_file=u'guass003', nCores=60)
-# copa.run_copa('%s-r200-ztest'%('gauss003-corr-bkg'),pz_file=u'guass003-corr', nCores=60)
+# copa.run_copa('%s-r200-ztest'%('gauss003-bkg'),pz_file=u'guass003', nCores=60)
 # copa.run_copa('%s-r200-ztest'%('gauss003-count-bkg'), pz_file=u'guass003-count', nCores=60)
-copa.compute_muStar('%s-r200-ztest'%('gauss003-corr-bkg'), overwrite=True)
-copa.compute_muStar('%s-r200-ztest'%('gauss003-count-bkg'), overwrite=True)
-
-
+# copa.compute_muStar('%s-r200-ztest'%('gauss003-count-bkg'), overwrite=True)
 # generate_photoz_models('gaussian',copa.master_fname_tile_list,0.03,
 #                        group_name='guass003-upd',nCores=60)
 

@@ -130,7 +130,7 @@ def doRadialBin(radii,pz,rvec,testPz=False):
     r_mean = 0.5*(rvec[1:]+rvec[:-1])
     return ng_density, r_mean
 
-def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=0.05):
+def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=0.05,pz_factor=0.612):
     w, = np.where(radii<=rmax)
     radii, pz = radii[w], pz[w]
 
@@ -148,7 +148,7 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=
 
     ngals = ngals_cls-nbkg*area
     # ngals = ngals_cls-(nbkg*area)
-    ngals = np.where(ngals<0.,0.,ngals)
+    ngals = np.where(ngals<0.,0.,ngals)/pz_factor
 
     ####params=[11.6,12.45,1.0,12.25,-0.69]#parameters for mass conversion - see table 4 in Tinker paper
     params = [11.59,12.94,1.01,12.48,-0.69]#parameters for mass conversion - see table 4 in Tinker paper
@@ -383,7 +383,7 @@ def computeMaskFraction(pixelmap, gal, cat, r200, pdfr, pdfz, rvec, zvec):
             maskfrac.append(maskfraci)
         return np.array(maskfrac)
 
-def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,pixelmap=None,compute=True, h=0.7):
+def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14, pixelmap=None, pz_factor=0.613, h=0.7):
     ## estimate R200
     ncls = len(cat)
     r200m = []
@@ -391,17 +391,14 @@ def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14,pixelmap=None,compute=
 
     for idx in range(ncls):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
-        # magLim_i = cat['magLim'][idx,0] ## r-band cut
-
         gal = gals[(gals['CID']==cls_id)&(gals['dmag']<=0.)]
-        # gal = gals[(gals['CID']==cls_id)&(gals['mag'][:,1]<=magLim_i)] ## r-band cut
-        # gal = gals[(gals['CID']==cls_id)&(gals['amag'][:,1]<=-20.5)]
-
+        
         rac,dec = cat['RA'][idx], cat['DEC'][idx]
         da = cat['DA'][idx]
 
         # if compute:
-        r200i = calcR200(gal['R']*h,gal['pz0'],cls_id,z_cls,nbkg[idx],rac,dec,da,rmax=3,pixelmap=pixelmap)/h
+        r200i = calcR200(gal['R']*h,gal['pz0'],cls_id,z_cls,nbkg[idx],rac,dec,da,
+                         rmax=3, pz_factor=pz_factor,pixelmap=pixelmap)/h
         #r200i = checkR200(r200i,z_cls,M200=defaultMass)
 
         raperi = 1.*r200i

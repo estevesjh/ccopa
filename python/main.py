@@ -90,7 +90,7 @@ class copacabana:
                 pp.make_cutouts(rmax=8)
                 pp.make_relative_variables(z_window=0.03,nCores=60)
                 pp.assign_true_members()
-                pp.apply_mag_cut()
+                pp.apply_mag_cut(dmag_cut=3)
                 
                 print('Writing Master File')
                 make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
@@ -106,7 +106,7 @@ class copacabana:
             if self.dataset=='cosmoDC2':
                 print('load cosmoDC2 infile: %s'%self.gfile)
                 cdata= table_to_dict(Table(getdata(self.cfile)))
-                keys = np.unique(cdata['healpix_pixel'])
+                keys = np.unique(cdata['healpix_pixel'])[:10]
                 data = upload_cosmoDC2_hf5_files(self.gfile,keys)
                 print('loading process complete: %.2f s \n'%(time()-t0))
             
@@ -235,6 +235,7 @@ class copacabana:
         gal_list, cluster_list = [],[]
         for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
             # print('here')
+            print('master_file:',mfile)
             galaxies, clusters= load_copa_input_catalog(mfile,self.kwargs,pz_file=pz_file,simulation=self.simulation)
 
             # galaxies = Table(getdata(self.temp_file_dir+'/{:05d}/{}_copa_test_gal.fits'.format(hpx,run_name[:-5])))
@@ -343,12 +344,7 @@ class copacabana:
         if self.healpix:
             self.copa_pdf_output_files = [self.pdf_file_dir+'/{name}_{type}_output_{id:05d}.hdf5'.format(name=run_name,type='pdf',id=hpx) for hpx in self.tiles]
 
-        # ckwargs = [{'outfile_pdfs':pdfi,'member_outfile':membi,'cluster_outfile':clsi,'r_in':self.kwargs['r_in'],
-        #             'r_out':self.kwargs['r_out'], 'sigma_z':self.kwargs['z_window'], 'simulation': self.simulation,
-        #             'r_aper_model':self.kwargs['r_aper_model'],'pixelmap':self.kwargs['pixelmap_file']}
-        #            for clsi,membi,pdfi in zip(self.copa_temp_cluster_output_files,self.copa_temp_members_output_files,self.copa_pdf_output_files)]
-
-        ckwargs = [{'outfile_pdfs':pdfi,'member_outfile':None,'cluster_outfile':None,'r_in':self.kwargs['r_in']/h,
+        ckwargs = [{'outfile_pdfs':pdfi,'member_outfile':None,'cluster_outfile':None,'r_in':self.kwargs['r_in']/h, 'pz_factor':self.kwargs['pz_factor'],
                     'r_out':self.kwargs['r_out']/h, 'sigma_z':self.kwargs['z_window'], 'zfile':self.kwargs['z_model_file'], 
                     'simulation': self.simulation, 'r_aper_model':self.kwargs['r_aper_model'],'pixelmap':self.kwargs['pixelmap_file']}
                     for pdfi in self.copa_pdf_output_files]

@@ -30,7 +30,7 @@ class BayesianProbability:
 
     def load_pdfs(self,gal):
         if self.r2 is None: self.r2 = float(gal['R200'][0])
-        zcls = np.array(gal['redshift']).copy()
+        zcls = np.array(gal['redshift'][:]).copy()
         
         self.pdfz = np.array(gal['pdfz'][:]).copy()
         self.pdfr = np.array(gal['pdfr'][:]).copy()
@@ -156,7 +156,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
 
     gal['pdfc'] = np.zeros_like(gal['color'])
     gal['pdfc_bkg'] = gal['pdfc']
-
+    
     for i, idx in enumerate(galIndices):
         nb      = nbkg[i]
         zwindow = sigma[i]
@@ -173,11 +173,12 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         r2    = ggal['R200'] 
         radii = ggal['R']
         zgal  = ggal['z']
-        zcls  = zggal['redshift']
+        zcls  = ggal['redshift']
         zoff  = ggal['zoffset']*(1+zcls)
         zsig  = ggal['zerr']
         color5= ggal['color']
         mag   = ggal['dmag']
+        zmask = ggal['zmask']
         areag = np.pi*r2**2
 
         radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
@@ -187,7 +188,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         gal['pdfr'][idx]     = out1[0]
         gal['pdfr_bkg'][idx] = out1[1]
         
-        out2 = get_photoz_pdf(zgal, zoff, zsig, zvec, pdfzi, pdfzi_bkg, sigma=zwindow)
+        out2 = get_photoz_pdf(zgal, zoff, zsig, zvec, pdfzi, pdfzi_bkg, zmask, sigma=zwindow)
         gal['pdfz'][idx]     = out2[0]
         gal['pdfz_bkg'][idx] = out2[1]
         
@@ -199,8 +200,8 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         gal['pdfm_bkg'][idx] = get_frequency(interpData(mvec,pdfmi_bkg,mag))
 
         ## choose the color filters: g-r for zcls<0.35 and r-i otherwise
-        pdfcii     = get_color_pdf(zcls,pdfci)
-        pdfcii_bkg = get_color_pdf(zcls,pdfci_bkg)
+        pdfcii     = get_color_pdf(zcls,gal['pdfc'][idx,:])
+        pdfcii_bkg = get_color_pdf(zcls,gal['pdfc'][idx,:])
 
         models       = [gal['pdfr'][idx],gal['pdfz'][idx],pdfcii]
         models_field = [gal['pdfr_bkg'][idx],gal['pdfz_bkg'][idx],pdfcii_bkg]
@@ -212,7 +213,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         gal['pdf'][idx]     = get_full_pdf(models)
         gal['pdf_bkg'][idx] = get_full_pdf(models_field)
                 
-        ng_profile       = interpData(rvec,pdfr_cfi,radi2,extrapolate=True)
+        ng_profile       = interpData(rvec,pdfr_cfi,radi2)
         gal['norm'][idx] = (ng_profile - nb*areag)#/nb
     return gal
 
@@ -226,23 +227,23 @@ def get_frequency(pdf,eps=1e-12):
     return pdfn
 
 def get_radial_pdf(radii,rvec,pdfr):
-    pdfr_gal = interpData(rvec,pdfr,radii,extrapolate=True)
+    pdfr_gal = interpData(rvec,pdfr,radii)
     pdfr_bkg = np.ones_like(radii)
     
     pdfr_gal = np.where(pdfr_gal<0.,0.,pdfr_gal)
     return get_frequency(pdfr_gal), get_frequency(pdfr_bkg)
 
-def get_photoz_pdf(zgal,zoff,zsig,zvec,pdfz,pdfz_field,sigma=0.03):
+def get_photoz_pdf(zgal,zoff,zsig,zvec,pdfz,pdfz_field,cut,sigma=0.03):
     ## for a convoluted gaussian: sigma_new^2 = sigma_gal^2+sigma_cls^2
-    sigma_eff= np.sqrt(zsig**2+sigma**2)
-    pdfz_gal = gaussian(zoff,0.,sigma_eff)#interpData(rvec,pdfz,zgal,extrapolate=True)
+    sigma_eff= sigma#np.sqrt(zsig**2+sigma**2)
+    pdfz_gal = gaussian(zoff,0.,sigma_eff)#interpData(rvec,pdfz,zgal)
 
     ## background distribution
-    pdfz_bkg   = interpData(zvec,pdfz_field,zgal,extrapolate=True)
+    pdfz_bkg   = interpData(zvec,pdfz_field,zgal)
     pdfz_bkg   = np.where(pdfz_bkg<0.,0.,pdfz_bkg)
 
     ## only galaxies inside 3*sigma
-    cut = np.abs(zoff)<=3*sigma
+    #cut = np.abs(zoff)<=2*sigma
     pdfz_gal[np.logical_not(cut)] = 0.
     pdfz_bkg[np.logical_not(cut)] = 0.
 

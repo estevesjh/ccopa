@@ -8,7 +8,7 @@ pixelmap_file    :
 
 
 ######## copa setup #######
-zmin_gal: 0.001
+zmin_gal: 0.0
 zmax_gal: 1.5
 dz_max  : 0.3
 
@@ -16,6 +16,9 @@ dz_max  : 0.3
 rmax : 3.
 r_in : 4.
 r_out: 6.
+
+## pz0 factor
+pz_factor: 1.
 
 ## relative mag cut
 mag_model_file: /home/s1/jesteves/git/ccopa/aux_files/annis_mags_04_Lcut.txt
@@ -37,7 +40,7 @@ z_model_file : /home/s1/jesteves/git/ccopa/aux_files/zwindow_model_buzzard_dnf.t
 
 ## Healpixel config
 healpixel_setup : True
-healpixel_list  : [32, 33]
+healpixel_list  : [32,34]
 # healpixel_list  : [0, 16, 17, 18, 19, 20, 22, 32, 33, 34, 35, 38, 44, 45, 46, 47]
 ## for the whole sample use the pixel list below
 

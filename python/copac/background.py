@@ -111,26 +111,26 @@ def radec_pix(ra,dec,nside=1024,nest=True):
 #             return nside
 
 
-def get_pizza_slice(weights,theta,nslices=120,eps=1e-9):
+def get_pizza_slice(weights,theta,nslices=72,eps=1e-9):
     res = np.empty(0,dtype=float)
     for ni in range(nslices):
         w, = np.where((theta <= (ni+1)*(360/nslices))&(theta >= (ni)*(360/nslices)))
         Nbkg = np.log10(np.nansum(weights[w])+eps)
         res = np.append(res,Nbkg)
-    res = np.where(res<-7.,-7.,res)
+    res = np.where(res<=-9.,-0.,res)
     return nslices*10**res
 
-def remove_outliers(lista,no_cuts=False,ncut=2.):
-    cond = lista>-3
+def remove_outliers(lista,no_cuts=False,ncut=10.):
+    cond = lista>=-9.
     if (np.count_nonzero(cond)<3):
-        return 10**-7, np.empty((0,),dtype=np.int)
+        return 10**-9, np.empty((0,),dtype=np.int)
     if no_cuts:
         return np.median(lista[cond]),np.where(cond)[0]
     
     low,high = np.percentile(lista[cond],[25,75])
     iqr = (high-low)
     
-    nl, nh = low-1.5*iqr,high+ncut*iqr
+    nl, nh = low-ncut*iqr,high+ncut*iqr
     
     sectors0, = np.where((lista>nl)&(lista<nh))
     lista2 = lista[sectors0]
@@ -151,7 +151,7 @@ def pol2cart(rho, phi):
     y = rho * np.sin(phi)
     return(x, y)
 
-def computeDensityBkg(gal,cat,r_in=6,r_aper=1,r_out=8,nslices=72):
+def computeDensityBkg(gal,cat,r_aper=1,r_in=6,r_out=8,nslices=72):
     ''' It computes the background galaxy density in a ring (r_in,r_out). 
         In order to avoid over and under dense regions it cuts the ring in a given number of slices (nslices)
         and computes the galaxy density in each slice (nbkg_i). It discards 3sigma around the median.
@@ -167,35 +167,48 @@ def computeDensityBkg(gal,cat,r_in=6,r_aper=1,r_out=8,nslices=72):
     bkg   = gal['Bkg']
     pz    = gal['pz0']
     theta = gal['theta']
+    
+    zmask = gal['zmask']
 
-    area_bkg = np.pi*( (r_out)**2 - (r_in)**2 )
-    area     = np.pi*r_aper**2
+    mask = bkg & zmask
+
+    area_bkg = cat['Area_bkg']
+    area     = cat['Area']
+
+    # area_bkg = np.pi*( (r_out)**2 - (r_in)**2 )
+    # area     = np.pi*r_aper**2
 
     keys = list(chunks(gidx,cidx))
-    bkgKeys = [idx[bkg[idx]] for idx in keys]
+    bkgKeys = [idx[mask[idx]] for idx in keys]
 
-    ## compute n bkg galaxies per slices
-    sliceList  = [get_pizza_slice(pz[idx],theta[idx],nslices=nslices) for idx in bkgKeys]
-    out        = [remove_outliers(np.log10(slices)) for slices in sliceList]
-
-    nbkg    = np.array([out[i][0] for i in range(ncls)])/area_bkg
-    indices = [idx[get_sectors_indices(theta[idx],out[i][1])] for i,idx in enumerate(bkgKeys)]
-    
-    maskBkg = np.full(len(bkg), False, dtype=bool)
-    for idx in indices:
+    maskBkg    = np.full(len(bkg), False, dtype=bool)
+    nbkg_count = []
+    nbkg       = []
+    for idx in bkgKeys:
         maskBkg[idx] = True
-    
-    ## check nbkg<ngal_core
-    cut     = gal['R']<=r_aper
-    galKeys = [idx[cut[idx]] for idx in keys]
-    ngal    = np.array([np.nansum(pz[idx]) for idx in galKeys])/area
+        nbkg.append(np.sum(pz[idx]))
+        nbkg_count.append(idx.size)
+    nbkg       = np.array(nbkg)/area_bkg
+    nbkg_count = np.array(nbkg_count)/area_bkg
 
-    w, = np.where(nbkg>ngal)
-    if w.size>0:
-        print('Error: %i clusters with nbkg > ngal'%(w.size))
-        nbkg[w] = np.array([remove_outliers(np.log10(slices),ncut=0.25)[0] for slices in np.array(sliceList)[w]])/area_bkg
+    # ## compute n bkg galaxies per slices
+    # sliceList  = [get_pizza_slice(pz[idx],theta[idx],nslices=nslices) for idx in bkgKeys]
+    # out        = [remove_outliers(np.log10(slices),ncut=3) for slices in sliceList]
+
+    # nbkg       = np.array([out[i][0] for i in range(ncls)])/area_bkg
+    # indices    = [idx[get_sectors_indices(theta[idx],out[i][1])] for i,idx in enumerate(bkgKeys)]
+
+    ## check nbkg<ngal_core
+    # cut     = gal['R']<=r_aper
+    # galKeys = [idx[cut[idx]] for idx in keys]
+    # ngal    = np.array([np.nansum(pz[idx]) for idx in galKeys])/area
+
+    # w, = np.where(nbkg>ngal)
+    # if w.size>0:
+    #     print('Error: %i clusters with nbkg > ngal'%(w.size))
+    #     nbkg[w] = np.array([remove_outliers(np.log10(slices),ncut=0.25)[0] for slices in np.array(sliceList)[w]])/area_bkg
     
-    return nbkg, maskBkg
+    return nbkg, nbkg_count, maskBkg
 
 def get_sectors_indices(theta,sectors,nslices=120):
     indices = np.empty(0,dtype=int)
