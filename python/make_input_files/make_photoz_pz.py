@@ -20,9 +20,10 @@ from make_input_files import read_hdf5_file_to_dict
 class photoz_model:
     """ Photo-z Model
     """
-    def __init__(self,zwindow=0.03,zmodel_file=None):
+    def __init__(self,zwindow=0.03,zmodel_type='mag',zwindow_file=None):
         self.zwindow      = zwindow      ## gaussian std error
-        self.zmodel_file  = zmodel_file
+        self.zwindow_file  = zwindow_file
+        self.zmodel_type  = zmodel_type
 
     def load_data(self,fname,simulation=True):
         print('\nLoad Infile')
@@ -99,21 +100,37 @@ class photoz_model:
         self.data['zoffset']= zoffset
         self.data['zwindow']= zwindow*np.ones_like(z_noise)
 
-    def model_photoz_bias(self,exp_factor=True):
+    def assign_photoz_mag_error(self,model_file):
+        magi = self.data['mag'][:,2]        
+        if model_file is not None:
+            zres    = np.genfromtxt(model_file,delimiter=',')
+            xb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
+
+            zerr = np.interp(magi,xb,sigma)
+            bias = np.interp(magi,xb,mean)
+            self.data['zerr'] = zerr
+
+        else:
+            print('Error: model file is None')
+
+        
+        #self.data['zoffset'] -= bias
+
+    def model_photoz_window(self,exp_factor=True):
         zcls = self.data['redshift']
 
         ## make corrections
-        if self.zmodel_file is not None:
-            zres    = np.genfromtxt(self.zmodel_file,delimiter=',')
-            zb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
-            
-            bias      = np.interp(zcls,zb,mean)
-            zwindow_z = np.interp(zcls,zb,sigma) ##np.interp(zcls,zb,sigma)
+        if self.zwindow_file is not None:
+            zres    = np.genfromtxt(self.zwindow_file,delimiter=',')
+            xb,mean,sigma = zres[:,0],zres[:,1],zres[:,2]
 
+            bias      = np.interp(zcls,xb,mean)
+            zwindow_z = np.interp(zcls,xb,sigma) ##np.interp(zcls,zb,sigma)
+                
             if exp_factor:
                 zwindow_z *= (1+zcls)
             
-            self.data['zoffset'] = self.data['zoffset']-bias
+            #self.data['zoffset'] = self.data['zoffset']-bias
             self.data['zwindow'] = zwindow_z
         else:
             print('Error: zmodel file is None')
@@ -166,39 +183,6 @@ def compute_pdfz_bpz(pdfz,zcls,sigma):
     #pz = np.where(np.abs(zoffset) >= 3*sigma, 0., pz/np.max(pz))
     pz  = pz/(1.*np.max(pz))
     return pz
-
-# def compute_pdfz(zoffset,membzerr,sigma,zcls,npoints=1000):
-#     ''' Computes the probability of a galaxy be in the cluster
-#         for an interval with width n*windows. 
-#         Assumes that the galaxy has a gaussian redshift PDF.
-
-#         npoints=1000 # it's accurate in 2%% level
-#     '''  
-#     zmin, zmax = -5*sigma, 5*sigma
-#     zmin = check_boundaries(zmin,zcls)
-    
-#     ## photo-z floor
-#     membzerr= np.where(membzerr<0.005,0.005,membzerr)
-
-#     ## multi dymensional arrays
-#     z       = np.linspace(zmin,zmax,npoints)
-#     zz, yy  = np.meshgrid(z,np.array(zoffset))
-#     zz, yy2 = np.meshgrid(z,np.array(membzerr))
-    
-#     pdfz = gaussian(zz,yy,yy2)
-    
-#     w,  = np.where( np.abs(z) <= 1.5*sigma) ## integrate in 1.5*sigma
-#     p0 = integrate.trapz(pdfz[:,w],x=zz[:,w])
-#     pz = np.where(p0>1., 1., p0)
-
-#     #w,  = np.where( np.abs(z) <= 1.5*sigma) ## integrate in 1.5*sigma
-#     #a   = np.cumsum(pdfz, axis=1)/np.sum(pdfz, axis=1)[:,np.newaxis]
-#     #pz  = a[:,w[-1]]-a[:,w[0]]
-
-#     ## get out with galaxies outside 5 sigma
-#     # pz = np.where(np.abs(zoffset) >= 3*sigma, 0., pz)
-#     pz = np.where(np.abs(zoffset) >= 3*sigma, 0., pz/np.max(pz))
-#     return pz
 
 def compute_pdfz(membz,membzerr,sigma,zcls,npoints=1000,correction=True):
     ''' Computes the probability of a galaxy be in the cluster
@@ -339,7 +323,7 @@ def make_gaussian_photoz(files,zsigma,nCores=60,method=None):
         mkPz     = photoz_model(zwindow=zsigma)
         mkPz.load_data(infile)
         mkPz.generate_gaussian_photoz()
-        # mkPz.model_photoz_bias()
+        # mkPz.model_photoz_window()
         mkPz.compute_photoz_probability(nCores=nCores,method=method)
 
         print('Writing outfile')
@@ -352,12 +336,12 @@ def make_gaussian_photoz(files,zsigma,nCores=60,method=None):
     total_time = np.array(total_time)[-1]#.sum()
     print('Total time: %.2f min'%(total_time))
 
-def generate_photoz_models(run_type,files,zsigma,zmodel_file=None,method=None,
+def generate_photoz_models(run_type,files,zsigma,zwindow_file=None,zerror_file=None,method=None,
                            group_name='Pz',nCores=60,emulator_file=None,offset=0.,gauss=False,emulator=False):
     t0     = time()
     if run_type=='gaussian':
         if group_name =='Pz': group_name = get_name_string(zsigma) ## e.g. gauss005
-        zmodel_file= None
+        zwindow_file= None
         gauss = True
     
     if run_type=='emulator':
@@ -368,15 +352,17 @@ def generate_photoz_models(run_type,files,zsigma,zmodel_file=None,method=None,
     total_time=[]
     print('Generating photoz catalog: %s'%group_name)
     for infile in files:
-        mkPz     = photoz_model(zwindow=zsigma,zmodel_file=zmodel_file)
+        mkPz     = photoz_model(zwindow=zsigma,zwindow_file=zwindow_file)
         mkPz.load_data(infile)
         
         if gauss:
             mkPz.generate_gaussian_photoz()
+        if emulator:
+            mkPz.emulate_photoz(loaded_model,offset=offset)
+            mkPz.model_photoz_window()
         else:
-            if emulator:
-                mkPz.emulate_photoz(loaded_model,offset=offset)
-            mkPz.model_photoz_bias()
+            mkPz.model_photoz_window()
+            mkPz.assign_photoz_mag_error(zerror_file)
 
         print('Computing pz0')
         mkPz.compute_photoz_probability(nCores=nCores,method=method)
@@ -398,10 +384,10 @@ if __name__ == '__main__':
     root= '/home/s1/jesteves/git/ccopa'
     zw = root+'/aux_files/zwindow_model_buzzard_dnf.txt'
     
-    generate_photoz_models('bias',files,0.03,zmodel_file=zw,group_name='dnf_model',nCores=60)
-    generate_photoz_models('gaussian',files,0.01,zmodel_file=None,group_name=None,nCores=60,emulator_file=None,offset=0.)
-    generate_photoz_models('gaussian',files,0.03,zmodel_file=None,group_name=None,nCores=60,emulator_file=None,offset=0.)
-    generate_photoz_models('gaussian',files,0.05,zmodel_file=None,group_name=None,nCores=60,emulator_file=None,offset=0.)
+    generate_photoz_models('bias',files,0.03,zwindow_file=zw,group_name='dnf_model',nCores=60)
+    generate_photoz_models('gaussian',files,0.01,zwindow_file=None,group_name=None,nCores=60,emulator_file=None,offset=0.)
+    generate_photoz_models('gaussian',files,0.03,zwindow_file=None,group_name=None,nCores=60,emulator_file=None,offset=0.)
+    generate_photoz_models('gaussian',files,0.05,zwindow_file=None,group_name=None,nCores=60,emulator_file=None,offset=0.)
 
     ###############
     ### gaussian photoz
@@ -413,18 +399,18 @@ if __name__ == '__main__':
     # loaded_model = load_cpickle_gc(infile)
     # global loaded_model
     # for fname in files:
-    #     mkPz = photoz_model(zwindow=zsigma,zmodel_file='/home/s1/jesteves/git/ccopa/aux_files/emuBPZ_correction_z_buzzard.txt')
+    #     mkPz = photoz_model(zwindow=zsigma,zwindow_file='/home/s1/jesteves/git/ccopa/aux_files/emuBPZ_correction_z_buzzard.txt')
     #     mkPz.load_data(fname)
     #     mkPz.emulate_photoz(loaded_model,offset=0.092)
-    #     mkPz.model_photoz_bias()
+    #     mkPz.model_photoz_window()
     #     mkPz.compute_photoz_probability(nCores=60)
     #     write_gauss_outfile(fname,mkPz.data,'emuPz',overwrite=True)
 
     ###############
     ## photoz bias
     # for fname in files:
-    #     mkPz = photoz_model(zwindow=zsigma,zmodel_file='/home/s1/jesteves/git/ccopa/aux_files/zwindow_model_buzzard_dnf')
+    #     mkPz = photoz_model(zwindow=zsigma,zwindow_file='/home/s1/jesteves/git/ccopa/aux_files/zwindow_model_buzzard_dnf')
     #     mkPz.load_data(fname)
-    #     mkPz.model_photoz_bias()
+    #     mkPz.model_photoz_window()
     #     mkPz.compute_photoz_probability(nCores=60)
     #     write_gauss_outfile(fname,mkPz.data,'dnf_model',overwrite=True)

@@ -136,7 +136,7 @@ class copacabana:
             temp_infile = [self.temp_file_dir+'/{:05d}/input_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
             temp_outfile= [self.temp_file_dir+'/{:05d}/output_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
 
-            idx = make_bma_catalog_cut(mfile,rmax,dmag_lim=1,overwrite=overwrite)
+            idx = make_bma_catalog_cut(mfile,self.kwargs,rmax,overwrite=overwrite)
             make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
 
             indices.append(idx)
@@ -335,12 +335,23 @@ class copacabana:
         totalTimeMsg = "Total time: {}s".format(totalTime)
         print(totalTimeMsg)
 
-    
+    def make_copa_tmp_files(self,run_name,gal_list,cluster_list):
+        self.copa_temp_cluster_input_files = []
+        self.copa_temp_members_input_files = []
+
+        for i in range(len(gal_list)):
+            cfile = self.temp_file_dir+'/{name}_{type}_input_{id:05d}.fits'.format(name=run_name,type='cluster',id=i)
+            gfile = self.temp_file_dir+'/{name}_{type}_input_{id:05d}.fits'.format(name=run_name,type='members',id=i)
+            gal_list[i].write(gfile,format='fits',overwrite=True)
+            cluster_list[i].write(cfile,format='fits',overwrite=True)
+            self.copa_temp_cluster_input_files.append(cfile)
+            self.copa_temp_members_input_files.append(gfile)
+        pass
+
     def copa_trigger(self,run_name,gal_list,cluster_list,nCores=2,):
         self.copa_nchunks = len(gal_list)
-        # self.copa_temp_cluster_output_files = [self.temp_file_dir+'/{name}_{type}_output_{id:05d}.fits'.format(name=run_name,type='cluster',id=i) for i in range(self.copa_nchunks)]
-        # self.copa_temp_members_output_files = [self.temp_file_dir+'/{name}_{type}_output_{id:05d}.fits'.format(name=run_name,type='members',id=i) for i in range(self.copa_nchunks)]
         self.copa_pdf_output_files          = [self.pdf_file_dir+'/{name}_{type}_output_{id:05d}.hdf5'.format(name=run_name,type='pdf',id=i) for i in range(self.copa_nchunks)]
+        
         if self.healpix:
             self.copa_pdf_output_files = [self.pdf_file_dir+'/{name}_{type}_output_{id:05d}.hdf5'.format(name=run_name,type='pdf',id=hpx) for hpx in self.tiles]
 
@@ -348,9 +359,12 @@ class copacabana:
                     'r_out':self.kwargs['r_out']/h, 'sigma_z':self.kwargs['z_window'], 'zfile':self.kwargs['z_model_file'], 
                     'simulation': self.simulation, 'r_aper_model':self.kwargs['r_aper_model'],'pixelmap':self.kwargs['pixelmap_file']}
                     for pdfi in self.copa_pdf_output_files]
-            
+        
+        self.make_copa_tmp_files(run_name,gal_list,cluster_list)
+        gal_list,cluster_list=0.,0.
+
         print('copa parallel process')
-        out = Parallel(n_jobs=nCores)(delayed(clusterCalc)(gal_list[i], cluster_list[i], **ckwargs[i]) 
+        out = Parallel(n_jobs=nCores)(delayed(clusterCalc)(self.copa_temp_members_input_files[i], self.copa_temp_cluster_input_files[i], **ckwargs[i]) 
                                       for i in range(self.copa_nchunks))
         g0, cat = getOutFile(out)
 

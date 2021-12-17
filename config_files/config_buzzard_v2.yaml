@@ -24,7 +24,7 @@ pz_factor: 1.
 mag_model_file: /home/s1/jesteves/git/ccopa/aux_files/annis_mags_04_Lcut.txt
 dmag_lim: 1
 
-## cluster aperture radii, it can be a number in Mpc, values: hod/r200 (simulation)
+## cluster aperture radii, it can be a number in Mpc, values: rhod/r200 (simulation)
 r_aper_model : r200
 r_aper_value : 
 

@@ -208,13 +208,13 @@ def computeColorPDF(gals,cat,r200,nbkg,keys,color_vec,bandwidth=[0.008,0.001,0.0
         r2, nb = r200[idx], nbkg[idx]
         # n_cls_field, nb = ngals[idx], nbkg[idx]
 
-        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id) & (gals["R"]<=gals['r_aper'])) 
+        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id) & (gals["R"]<=gals['r_aper'])&(gals['zmask'])) 
         # galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id) & (gals["R"]<=1.)) 
-        galaxies2, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)) 
+        galaxies2, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)&(gals['zmask']))
 
         galIDX.append(galaxies)
         
-        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
+        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id)&(gals['zmask']))
 
         mag, mag_bkg = gals['mag'][galaxies], gals['mag'][bkgGalaxies]
         mag2 = gals['mag'][galaxies2]

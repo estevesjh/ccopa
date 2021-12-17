@@ -20,11 +20,35 @@ from astropy.cosmology import FlatLambdaCDM
 import healpy as hp
 from projection_radec_to_xy import xy_to_radec,radec_to_xy
 
-cosmo = FlatLambdaCDM(H0=70, Om0=0.283)
+cosmo = FlatLambdaCDM(H0=70, Om0=0.283, Ob0=0.0457, Tcmb0=2.7255, name='my_cosmo')
 Msol = 1.98847e33
 Mpc2cm = 3.086e+24
 rad2deg= 180/np.pi
 h=0.7
+
+## set colossus comsology as the same from astropy
+from colossus.halo import profile_dk14
+from colossus.cosmology import cosmology
+sigma8 = 0.82
+ns = 0.96
+colossus_cosmo = cosmology.fromAstropy(cosmo, sigma8, ns, name = 'my_cosmo')
+cosmology.setCurrent(colossus_cosmo)
+
+def get_profile_DK14(rvec,m200,z):
+    ## rhos, rs, rt, alpha, beta, gamma
+    pars    = [3015.5,1194.25,1285120857.7,-0.1101785,4.,8.]
+
+    cvir    = 3
+    rmpc    = rvec #Mpc/h
+    rkpc    = rmpc*1e3  #kpc/h
+    
+    inpars  = pars+[m200,cvir,'vir',z]
+    profDK14= profile_dk14.DK14Profile(*inpars)
+    prof    = profDK14.surfaceDensity(rkpc)
+    prof_n  = prof/(2*np.pi*np.trapz(prof*rmpc,x=rmpc))
+
+    return prof_n
+
 
 #--- Critical universe density
 def rhoc(z):
@@ -166,7 +190,7 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=
     critdense = critdense1*np.ones_like(rbin)
 
     X=200  #desired excess over critical density, ex. if X=200, calculates R/M200
-    dX=50  #acceptance window around X
+    dX=100  #acceptance window around X
     ratio=mass_density/critdense
 
     f=interp1d(rbin,ratio,fill_value='extrapolate')
@@ -232,8 +256,7 @@ def profileNFW(R,R200,c=3):
 
 def doPDF(radii,R200,c=3,rc=0.2):
     density = profileNFW(radii,R200,c=c) ## without norm
-    # density = np.where(radii<rc,np.mean(density[radii<rc]), density)
-    
+    density = np.where(radii<rc,np.min(density[radii<rc]), density)
     return density
 
 def norm_const_integrand(R,R200,c):
@@ -449,6 +472,18 @@ def computeN200(gals, cat, r200, nbkg, testPz=False):
 
     return np.array(N200), galsFlag, keys
 
+def get_radial_pdf(rvec,radii,weights,rc=0.15):
+    #ng  = np.histogram(radii,weights=weights,bins=rvec)[0]
+    #ng  = np.array([np.sum(weights[radii<=ri]) for ri in rvec])/(np.pi*rvec**2) ## number of galaxies (<R) 
+    rvec=np.where(rvec<rc,rc,rvec)
+    ng  = np.full(rvec.size,0)
+    for i,ri in enumerate(rvec):
+        mask = radii<=ri
+        if np.count_nonzero(mask)>0:
+            ng[i] = np.sum(weights[mask])/(np.pi*ri**2)
+    norm= 2*np.pi*np.trapz(ng*rvec,x=rvec)
+    return ng/norm
+
 def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
     '''it's missing the normalization factor
     '''
@@ -462,53 +497,34 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
     for idx in range(len(cat)):
         cls_id, z_cls = cat['CID'][idx], cat['redshift'][idx]
         r2,ra = r200[idx], raper[idx]
+        nb = nbkg[idx]
 
-        galIndices, = np.where((gals['CID']==cls_id)&(gals['Gal']==True))
-        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
-
-        g2, = np.where( (gals['CID']==cls_id)&(gals['dmag']<=0.))
-        # g2, = np.where( (gals['CID']==cls_id)&(gals['mag'][:,1]<=cat['magLim'][idx,0]) )
-        # g2, = np.where( (gals['CID']==cls_id)&(gals['amag'][:,1]<=-20.5) ) ## Mr<=-19.5
+        galIndices, = np.where((gals['CID']==cls_id)&(gals['Gal']==True) &(gals['zmask']) )
+        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id)&(gals['zmask']) )
 
         radii = gals['R'][galIndices]
-        radii2 = gals['R'][g2]
         radii_bkg = gals['R'][bkgGalaxies]
         
-        probz = gals['pz0'][g2]
+        probz = gals['pz0'][galIndices]
         probz_bkg = gals['pz0'][bkgGalaxies]
-
-        # pdfi = (N2/area200)*doPDF(radii,r2,c=c)
-        ni = nbkg[idx]
-        area200 = np.pi*(r2/c)**2
-
-        area_aper = np.pi*(ra)**2
-        N2 = (len(radii)/area200)-ni
         
+        area  = np.pi*r2**2 
+        prior = 1 - (nb*area/np.sum(probz))
+
         normConstant = norm_constant(ra,c=c)
 
-        # idxs = np.trunc(rmed/0.15)
-        # idxs = np.where(idxs<=round(r2/0.15), idxs, round(r2/0.15))
-        # rapers = np.unique(0.15*(idxs+1))
-        # rapers.sort()
-        
-        # normConstant = np.array([norm_constant(rx,c=c) for rx in rapers])
-        # normConstant = normConstant[idxs.astype(np.int)]
+        pdf_cls_i = doPDF(rmed,r2,c=c)
+        pdf_cls_i/= 2*np.pi*np.trapz(rmed*pdf_cls_i,x=rmed)
 
-        # pdfi = normConstant*doPDF(radii,r2,c=c)
-        # pdf = np.append(pdf,pdfi)
+        #m2 = convertR200toM200(r2*h,z_cls)/h
+        #pdf_cls_i = get_profile_DK14(rmed,m2,z_cls)
 
-        pdf_cls_i = normConstant*doPDF(rmed,r2,c=c)
         pdf_cls.append(pdf_cls_i)
 
-        area = np.pi*(rmed**2)
-        pdf_cf_i = np.array([np.sum(probz[radii2<=ri]) for ri in rmed])#doRadialBin(radii2,probz,rvec,testPz=True)
-        # pdf_cf_i = pdf_cf_i/area#gaussian_filter(pdf_cf_i,sigma=2)
+        #pdf_f_i  = get_radial_pdf(rmed,radii_bkg,probz_bkg)#np.histogram(radii_bkg,bins=rvec,weights=probz_bkg)[0]
+        pdf_cf_i = get_radial_pdf(rmed,radii,probz)#np.histogram(radii,bins=rvec,weights=probz)[0]
+        pdf_f_i  = np.ones_like(rmed)#get_subtracted_pdf(rmed,pdf_cls_i,pdf_cf_i,pr=prior)
 
-        area2 = np.pi*(rvec2[1:]**2)
-        pdf_f_i = np.array([np.sum(probz_bkg[radii_bkg<=ri]) for ri in rvec2[1:]])
-        # pdf_f_i/= area2
-        # pdf_f_i = gaussian_filter(pdf_f_i,sigma=2)
-        
         pdf_cf.append(pdf_cf_i)
         pdf_field.append(pdf_f_i)
         
@@ -518,6 +534,19 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
     pdf_list = [pdf_cls, pdf_cf, pdf_field]
     return pdf_list
 
+def get_subtracted_pdf(xvec,model,cls_field,pr=0.5):
+    pr = np.where(pr<0.,0.1,pr)
+    
+    ## get subtraction
+    sub = (cls_field - pr*model)/(1-pr)
+
+    ## only overdensities
+    sub = np.where(sub<0.,0,sub)
+    
+    ## subtracted pdf
+    #sub = get_normalized_pdf(xvec,sub)
+    sub  /= 2*np.pi*np.trapz(sub*xvec,x=xvec)
+    return sub
 
 def interpData(x,y,xmin,xmax):
     bins = np.linspace(xmin,xmax,100)

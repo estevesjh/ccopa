@@ -1,5 +1,6 @@
 # !/usr/bin/env python
 from __future__ import print_function
+from astropy.io.fits.convenience import getdata
 import numpy as np
 import logging
 
@@ -154,8 +155,8 @@ def computeProb(gal, keys, norm, nbkg, area_vec):
     gal = set_new_columns(gal,['Pmem_flat','Pr_flat','Pz_flat','Pc_flat'],val=0.)
     gal = set_new_columns(gal,['Pmem_old','Pr_old','Pz_old','Pc_old'],val=0.)
 
-    Nc = norm
-    Nf = nbkg*area_vec
+    Nc = norm/area_vec
+    Nf = nbkg
 
     alpha = np.array(Nc).copy()
     beta  = np.array(Nf).copy()
@@ -380,10 +381,12 @@ def get_pdf_redshift(z,zvec,bw):
     return pdfRedshift
 
 def get_area(ang_diam_dist,r200=1.,r_in=4,r_out=6):
-    degrees_200 =(360/(2*np.pi))*(r200/ang_diam_dist)
-    degrees_i   =(360/(2*np.pi))*(r_in/ang_diam_dist)
-    degrees_j   =(360/(2*np.pi))*(r_out/ang_diam_dist)
-    
+    # degrees_200 =(360/(2*np.pi))*(r200/ang_diam_dist)
+    # degrees_i   =(360/(2*np.pi))*(r_in/ang_diam_dist)
+    # degrees_j   =(360/(2*np.pi))*(r_out/ang_diam_dist)
+    degrees_200    = r200
+    degrees_j, degrees_i = r_out, r_in
+
     solid_angle    = np.pi*degrees_200**2
     solid_angle_bkg= np.pi*(degrees_j**2-degrees_i**2)
 
@@ -425,8 +428,10 @@ def group_and_sort_tables(gal,cat):
 
 ## -------------------------------
 ## main function
-def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfile=None,pixelmap=None,
+def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, cluster_outfile=None,pixelmap=None,
                 r_in=4, r_out=6, sigma_z=0.05, zfile=None, pz_factor=0.613, p_low_lim=0., simulation=True, r_aper_model='hod'):
+    gal = Table(getdata(gal_file))
+    cat = Table(getdata(cat_file))
     ##############
     colorBW = [0.05,0.025,0.02]
     zBW = 'silverman'
@@ -490,7 +495,7 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
         nbkg0, nbkgc0, BkgFlag0 = computeContamination(galCut, cat['CID'], cat['Area'], np.array(cat['magLim']))
         Ngals_true              = compute_ngals(galCut, cat['CID'], raper,true_gals=True)
         
-    # nbkg = nbkg0
+    #nbkg = nbkg0
 
     print('Computing PDFs \n')
     print('-> Radial Distribution')
@@ -539,14 +544,14 @@ def clusterCalc(gal, cat, outfile_pdfs=None, member_outfile=None, cluster_outfil
         Ngals_true              = compute_ngals(galCut, cat['CID'], raper,true_gals=True)
 
     ## load pdfs
-    galCut = getPDFs(galCut,galIndices,var_list,pdf_list, nbkg[good_clusters],sigma[good_clusters],mag_pdf=False)
+    galCut = getPDFs(galCut,galIndices, var_list, pdf_list, nbkg[good_clusters],sigma[good_clusters],mag_pdf=False)
 
     ## compute probabilities
     galCut = computeProb(galCut, galIndices, norm, nbkg[good_clusters], area_vec)
 
     print('Writing Output: Catalogs  \n')
     print('Writing Galaxy Output')
-    # Colnames=['tile','mid', 'GID', 'CID', 'norm', 'Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 
+    # Colnames=['tile','mid', 'GID', 'CID', 'norm', 'Pr', 'Pz', 'Pc', 'Pmem', 'pdfr', 'pdfz', 'pdfc', 'pdfm', 'Pr_flat', 'Pz_flat', 'Pc_flat', 'Pmem_flat', 'Pr_old', 'Pz_old', 'Pc_old', 'Pmem_old',
     #           'pdf', 'pdfr_bkg', 'pdfz_bkg', 'pdfc_bkg', 'pdfm_bkg', 'pdf_bkg','z', 'zerr','zoffset','pz0','Rn','theta','dx','dy','R200']
     Colnames = galCut.colnames
     galOut = galCut[Colnames]

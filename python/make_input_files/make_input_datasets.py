@@ -73,37 +73,48 @@ def write_master_file(name_file,header,table0,table1,columns1=None):
 #     return mdata
 
 ### BMA 
-def make_bma_catalog_cut(fname,rmax,dmag_lim=0.,overwrite=False):
+def make_bma_catalog_cut(fname,kwargs,rmax,overwrite=False):
     fmaster = h5py.File(fname, "a")
 
     ## check if bma already exists
-    if check_not_hf5(fmaster['members'],'bma'):
-        print('making bma cutout')
-        columns = fmaster['members/main']
-        radii   = fmaster['members/main/R'][:]*h
-        dmag    = fmaster['members/main/dmag'][:]
-        zoff    = fmaster['members/main/zoffset'][:]
-        mid     = fmaster['members/main/mid'][:]
-        z       = fmaster['members/main/z'][:]
-
-        cut,    = np.where((radii<=rmax)&(dmag<=dmag_lim))
-        
+    #if check_not_hf5(fmaster['members'],'bma'):
+    print('making bma cutout')
+    columns = fmaster['members/main']
+    radii   = fmaster['members/main/R'][:]*h
+    dmag    = fmaster['members/main/dmag'][:]
+    mag     = fmaster['members/main/mag'][:]
+    mid     = fmaster['members/main/mid'][:]
+    z       = fmaster['members/main/redshift'][:]
+    
+    indices = apply_magnitude_selection(fname,kwargs)
+    mask    = radii[indices]<=rmax
+    
+    for i in range(3):
+        color = mag[indices,i] - mag[indices,i+1]
+        mask &= (color<=4.)&(color>=-1.)
+    
+    cut     = indices[mask]
+    try:
         fmaster.create_group('members/bma/')
         fmaster.create_dataset('members/bma/mid_cut/', data=mid[cut])
-        fmaster['members/bma/'].attrs['rmax'] = rmax
-        fmaster['members/bma/'].attrs['dmag'] = dmag_lim
-        fmaster['members/bma/'].attrs['nsize'] = int(cut.size)
+    except:
+        del fmaster['members/bma/mid_cut/']
+        fmaster.create_dataset('members/bma/mid_cut/', data=mid[cut])
 
-        bma_indices = mid[cut]
-    else:
-        bma_indices = fmaster['members/bma/mid_cut'][:]
-        if overwrite:
-            print('in construction')
-            # exclude_group(fmaster,'members/bma')
-            # fmaster.close()
-            # make_bma_catalog_cut(fname,rmax,dmag_lim=dmag_lim)
-        else:
-            print('BMA cut already exists; overwrite=False')
+    fmaster['members/bma/'].attrs['rmax'] = rmax
+    fmaster['members/bma/'].attrs['dmag'] = kwargs['mag_selection']
+    fmaster['members/bma/'].attrs['nsize'] = int(cut.size)
+
+    bma_indices = mid[cut]
+    # else:
+    #     bma_indices = fmaster['members/bma/mid_cut'][:]
+    #     if overwrite:
+    #         print('in construction')
+    #         # exclude_group(fmaster,'members/bma')
+    #         # fmaster.close()
+    #         # make_bma_catalog_cut(fname,rmax,dmag_lim=dmag_lim)
+    #     else:
+    #         print('BMA cut already exists; overwrite=False')
     fmaster.close()
     return bma_indices
 
@@ -164,7 +175,10 @@ def read_hdf5_file_to_dict(file,cols=None,indices=None,path='/'):
 
     mydict= dict().fromkeys(cols)
     for col in cols:
-        mydict[col] = np.array(mygroup[col][:][indices])
+        try:
+            mydict[col] = np.array(mygroup[col][:][indices])
+        except:
+            print('Error: %s'%(file))
     
     hf.close()
 
@@ -263,11 +277,11 @@ def select_photoz_catalog(data,fname,group=None):
     if group is None:
         return data
     else:
-        pzcat   = read_hdf5_file_to_dict(fname,cols=None,path=u'members/%s'%(group))
-        idx,    = np.where(np.in1d(pzcat['mid'],data['mid'],assume_unique=True))
+        pzcat   = read_hdf5_file_to_dict(fname,cols=pz_cols,indices=data['mid'][:],path=u'members/%s'%(group))
+        #idx,    = np.where(np.in1d(pzcat['mid'],data['mid'],assume_unique=True))
         for col in pz_cols:
-            arr       = np.array(pzcat[col][:])
-            data[col] = arr[idx]
+            data[col] = np.array(pzcat[col][:])
+            #data[col] = arr[idx]
         return data
 
 def count_input_gals(cdata,data):
@@ -396,7 +410,7 @@ def make_chunks(galaxies,clusters,nchunks):
         cls_list.append(clusters[cidxs] )
         gal_list.append(galaxies[gidxs])
 
-        header_chucks(i,gidxs.size,cidxs.size)
+        #header_chucks(i,gidxs.size,cidxs.size)
     return gal_list, cls_list
 
 def header_chucks(i,gsize,csize):
@@ -416,11 +430,18 @@ def write_copa_output_pandas(fname,gal,cat,run_name,overwrite=True):
     hdf.close()
     pass
 
+def check_group(fname,path):
+    hf = h5py.File(fname,'r')
+
+    all_items = list(allkeys(hf))
+    hf.close()
+    return path in all_items
+
 def write_copa_output(fname,gal,cat,run_name,overwrite=False):
-    if overwrite:
+    if check_group(fname,'clusters/copa/%s'%(run_name)):
         print('overwriting groups: members and clusters/copa/%s'%(run_name))
-        delete_group(fname,'clusters/copa/%s'%(run_name))
-        delete_group(fname,'members/copa/%s'%(run_name))
+        delete_group(fname,u'clusters/copa/%s'%(run_name))
+        delete_group(fname,u'members/copa/%s'%(run_name))
 
     fmaster = h5py.File(fname,'a')
     if 'copa' not in fmaster['members'].keys():
@@ -460,11 +481,12 @@ def delete_group(fname,path):
     try:
         fmaster = h5py.File(fname,'a')
         group   = fmaster[path]
-        cols = group.keys()
+        cols    = group.keys()
         if len(cols)>0:
             for col in cols: del group[col]
         fmaster.close()
     except:
+        fmaster.close()
         print('Error: failed to delete group %s'%path)
         return
     
@@ -478,27 +500,26 @@ def load_copa_output(fname,dtype,run,old_code=False):
     if dtype=='members':
         ## load copa, bma and members
         copa_dict = read_hdf5_file_to_dict(fname,path='members/copa/%s'%(run))
-        bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/')
+        # bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/')
 
-        midxs   = np.sort(copa_dict['mid'][:])
-        members = read_hdf5_file_to_dict(fname,indices=midxs,cols=None,path='members/main/') 
+        # midxs   = np.sort(copa_dict['mid'][:])
+        # members = read_hdf5_file_to_dict(fname,indices=midxs,cols=None,path='members/main/') 
         
-        print('Matching Copa output with main and BMA')
-        main = Table(members)
+        # print('Matching Copa output with main and BMA')
+        # main = Table(members)
         copa = Table(copa_dict)
-        bma  = Table(bma_dict)
+        # bma  = Table(bma_dict)
         
-        ## repeated cols
-        main.remove_columns(['GID','z','zerr','zoffset','pz0']) ## taking only the photoz info from the output
+        # ## repeated cols
+        # main.remove_columns(['GID','z','zerr','zoffset','pz0']) ## taking only the photoz info from the output
 
-        if not old_code:
-            toto = join(main,copa,keys=['mid','CID']) ## matching with the mid and the cluster ID
-        else:
-            toto = copa
+        # if not old_code:
+        #     toto = join(main,copa,keys=['mid','CID']) ## matching with the mid and the cluster ID
+        # else:
+        #     toto = copa
         
-        gal  = join(toto, bma, keys=['mid','CID'])
-        return gal
-
+        # gal  = join(toto, bma, keys=['mid','CID'])
+        return copa
 
 ### auxialry functions
 
@@ -600,3 +621,45 @@ def upload_dataFrame(infile,keys='members'):
     hdf.close()
     data = Table.from_pandas(df1)    
     return data
+
+
+def store_structure(name,node):
+    if isinstance(node, h5py.Group):
+        groups.append(node.name)
+        #print(name,node)
+    
+    if isinstance(node, h5py.Dataset):
+        datasets.append(node.name)
+        #print(name,node)
+        
+    return None
+
+def allkeys(obj):
+    "Recursively find all keys in an h5py.Group."
+    keys = (obj.name,)
+    if isinstance(obj, h5py.Group):
+        for key, value in obj.items():
+            if isinstance(value, h5py.Group):
+                keys = keys + allkeys(value)
+            else:
+                keys = keys + (value.name,)
+    return keys
+
+def copy_h5_file(infile,outfile):
+    hf = h5py.File(infile,'r')
+
+    groups = []
+    datasets = []
+    hf.visititems(store_structure)
+    hf2 = h5py.File(outfile,'w')
+
+    for g in groups:
+        hf2.create_group(g)
+
+    for d in datasets:
+        hf2.create_dataset(d,data=hf[d])
+
+    hf.close()
+    hf2.close()
+
+    os.rename(outfile,infile)

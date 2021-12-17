@@ -164,7 +164,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         ggal = gal[idx] ## group gal
 
         ## getting pdfs for a given cluster i
-        pdfri, pdfr_cfi  = pdfr[0][i], pdfr[1][i]
+        pdfri, pdfr_cfi  = pdfr[0][i], pdfr[2][i]
         pdfzi, pdfzi_bkg = pdfz[0][i], pdfz[2][i]
         pdfci, pdfci_bkg = pdfc[0][i], pdfc[2][i]
         pdfmi, pdfmi_bkg = pdfm[0][i], pdfm[2][i]
@@ -184,7 +184,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
         # areag = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
 
-        out1 = get_radial_pdf(radii,rvec,pdfri)
+        out1 = get_radial_pdf(radii,rvec,pdfri,pdfr_cfi)
         gal['pdfr'][idx]     = out1[0]
         gal['pdfr_bkg'][idx] = out1[1]
         
@@ -203,8 +203,8 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         pdfcii     = get_color_pdf(zcls,gal['pdfc'][idx,:])
         pdfcii_bkg = get_color_pdf(zcls,gal['pdfc'][idx,:])
 
-        models       = [gal['pdfr'][idx],gal['pdfz'][idx],pdfcii]
-        models_field = [gal['pdfr_bkg'][idx],gal['pdfz_bkg'][idx],pdfcii_bkg]
+        models       = [gal['pdfr'][idx],gal['pdfz'][idx]]#,pdfcii]
+        models_field = [gal['pdfr_bkg'][idx],gal['pdfz_bkg'][idx]]#,pdfcii_bkg]
         
         if mag_pdf:
             models.append(gal['pdfm'][idx])
@@ -213,7 +213,7 @@ def getPDFs(gal,galIndices,vec_list,pdf_list,nbkg,sigma,mag_pdf=False):
         gal['pdf'][idx]     = get_full_pdf(models)
         gal['pdf_bkg'][idx] = get_full_pdf(models_field)
                 
-        ng_profile       = interpData(rvec,pdfr_cfi,radi2)
+        ng_profile       = 1.#interpData(rvec,pdfr_cfi,radi2)
         gal['norm'][idx] = (ng_profile - nb*areag)#/nb
     return gal
 
@@ -226,9 +226,9 @@ def get_frequency(pdf,eps=1e-12):
     if norm>0.: pdfn = 100*pdfn/norm
     return pdfn
 
-def get_radial_pdf(radii,rvec,pdfr):
+def get_radial_pdf(radii,rvec,pdfr,pdfr_field):
     pdfr_gal = interpData(rvec,pdfr,radii)
-    pdfr_bkg = np.ones_like(radii)
+    pdfr_bkg = interpData(rvec,pdfr_field,radii)#np.ones_like(radii)
     
     pdfr_gal = np.where(pdfr_gal<0.,0.,pdfr_gal)
     return get_frequency(pdfr_gal), get_frequency(pdfr_bkg)

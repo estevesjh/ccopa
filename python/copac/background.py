@@ -259,3 +259,70 @@ def computeGalaxyDensity(gals, cat, rmax, nbkg,nslices=72):
 if __name__ == '__main__':
     print('background.py')
     print('author: Johnny H. Esteves')
+
+
+
+def getPDFs(gal,cidx):
+    gidx = gal['CID']
+    
+    gal = set_new_columns(gal,['pdf','pdfr','pdfz','pdfm','norm'],val=0.)
+    gal = set_new_columns(gal,['pdf_bkg','pdfr_bkg','pdfz_bkg','pdfm_bkg'],val=0.)
+
+    gal['pdfc'] = np.zeros_like(gal['color'])
+    gal['pdfc_bkg'] = gal['pdfc']
+
+    for i, idx in enumerate(galIndices):
+        cid= cidx[i]
+        ggal = gal[idx] ## group gal
+
+        ## getting pdfs for a given cluster i
+        pdfri, pdfr_cfi  = out[cid]['pdf_r'][:], out[cid]['pdff_r'][:]
+        pdfri, pdfr_cfi  = out[cid]['pdf_z'][:], out[cid]['pdff_z'][:]
+        pdfri, pdfr_cfi  = out[cid]['pdf_c'][:], out[cid]['pdff_c'][:]
+
+        ## setting galaxies variable columns
+        r2 = ggal['R200'] 
+        radii = ggal['R']
+        zgal  = ggal['z']
+        color5 = ggal['color']
+        mag = ggal['dmag']
+        areag = np.pi*r2**2
+
+        radi2 = 0.25*(np.trunc(radii/0.25)+1) ## bins with 0.125 x R200 width
+        # areag = np.pi*radi2**2#((radi2+0.25)**2-radi2**2)
+
+        gal['pdfr'][idx] = interpData(r_vec,pdfri,radii,extrapolate=True)*areag
+        gal['pdfz'][idx] = interpData(z_vec,pdfzi,zgal)
+
+        gal['pdfr_bkg'][idx] = np.ones_like(radi2)#/areag #interpData(rvec,np.ones_like(gal['pdfr'][idx]),radii)
+        gal['pdfz_bkg'][idx] = interpData(z_vec,pdfzi_bkg,zgal)
+
+        for j in range(5):
+            gal['pdfc'][idx,j] = interpData(c_vec,pdfci[:,j],color5[:,j])
+            gal['pdfc_bkg'][idx,j] = interpData(c_vec,pdfci_bkg[:,j],color5[:,j])
+        
+        gal['pdf'][idx] = gal['pdfr'][idx]*gal['pdfz'][idx]
+        gal['pdf_bkg'][idx] = gal['pdfr_bkg'][idx]*gal['pdfz_bkg'][idx]
+        
+        if mag_pdf:
+            gal['pdf'][idx] *= gal['pdfm'][idx]
+            gal['pdf_bkg'][idx] *= gal['pdfm_bkg'][idx]
+
+        gal['pdfc'][idx,:] = np.where(gal['pdfc'][idx,:]<0.,0.,gal['pdfc'][idx,:])
+        gal['pdfc_bkg'][idx,:] = np.where(gal['pdfc_bkg'][idx,:]<0.,0.,gal['pdfc_bkg'][idx,:])
+
+        # colors: (g-r),(g-i),(r-i),(r-z),(i-z)
+        # pick_colors = [0,1,2,3,4]
+        # for j in pick_colors:
+        #     gal['pdf'][idx] *= gal['pdfc'][idx,j]
+        #     gal['pdf_bkg'][idx] *= gal['pdfc_bkg'][idx,j]
+
+        gal['pdf'][idx] *= np.mean(gal['pdfc'][idx],axis=1)
+        gal['pdf_bkg'][idx] *= np.mean(gal['pdfc_bkg'][idx],axis=1)
+
+    gal['pdf'] = np.where(gal['pdf']<0.,0.,gal['pdf'])
+    gal['pdfr'] = np.where(gal['pdfr']<0.,0.,gal['pdfr'])
+    gal['pdfz'] = np.where(gal['pdfz']<0.,0.,gal['pdfz'])
+    gal['pdfc'] = np.where(gal['pdfc']<0.,0.,gal['pdfc'])
+
+    return gal

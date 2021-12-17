@@ -11,18 +11,24 @@ t0 = time()
 # cfg = '/home/s1/jesteves/git/ccopa/config_files/config_buzzard_v2.yaml'
 # copa = copacabana(cfg,dataset='buzzard_v2')
 
-cfg = '/home/s1/jesteves/git/ccopa/config_files/config_copa_dc2.yaml'
-copa = copacabana(cfg)
+# cfg = '/home/s1/jesteves/git/ccopa/config_files/config_copa_dc2.yaml'
+# copa = copacabana(cfg)
 
-copa.kwargs['dmag_lim']     = 0.
-copa.kwargs['r_aper_model'] = 'r200'
-copa.kwargs['z_window']     = 0.03
 
-# generate_photoz_models('gaussian',[copa.master_fname],0.03,
-#                        group_name='guass003-corr2',nCores=60)
+root = '/home/s1/jesteves/git/buzzardAnalysis/mainAnalysis/'
+cfg  = root+'config_buzzard_rm_v2.yaml'
+copa = copacabana(cfg,dataset='buzzard_v2')
+copa.run_bma_healpix(nCores=65,overwrite=True)
 
-copa.run_copa('%s-r200-ztest'%('gauss003-v2'),pz_file=u'guass003-corr2', nCores=60)
-copa.compute_muStar('%s-r200-ztest'%('gauss003-v2'), overwrite=True)
+# copa.kwargs['dmag_lim']     = 0.
+# copa.kwargs['r_aper_model'] = 'r200'
+# copa.kwargs['z_window']     = 0.03
+
+# # generate_photoz_models('gaussian',[copa.master_fname],0.03,
+# #                        group_name='guass003-corr2',nCores=60)
+
+# copa.run_copa('%s-r200-ztest-bkg'%('gauss003-v2'),pz_file=u'guass003-corr2', nCores=60)
+# copa.compute_muStar('%s-r200-ztest-bkg'%('gauss003-v2'), overwrite=True)
 
 # generate_photoz_models('gaussian',copa.master_fname_tile_list,0.03,
 #                        group_name='guass003-corr',nCores=60)

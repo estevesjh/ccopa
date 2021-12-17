@@ -160,9 +160,9 @@ def computeRedshiftPDF(gals,cat,r200,nbkg,keys,sigma,bias,bandwidth=0.008,zvec=n
         r2, nb = r200[idx], nbkg[idx]
         # n_cls_field, nb = ngals[idx], nbkg[idx]
 
-        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)& (gals["R"]<=gals['r_aper']) )
+        galaxies, = np.where((gals['Gal']==True)&(gals['CID']==cls_id)& (gals["R"]<=gals['r_aper'])&(gals['zmask']) )
         galaxies2, = np.where((gals['Gal']==True)&(gals['CID']==cls_id))
-        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id))
+        bkgGalaxies, = np.where((gals['Bkg']==True)&(gals['CID']==cls_id)&(gals['zmask']))
 
         z_gal = gals['z'][galaxies]
         zerr = gals['zerr'][galaxies]
