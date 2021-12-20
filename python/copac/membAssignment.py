@@ -165,7 +165,7 @@ def computeProb(gal, keys, norm, nbkg, area_vec):
     ncls = len(nbkg)
     res  = []
     for i,idx in enumerate(keys):
-        print('alpha,beta: %.2f ,%.2f'%(alpha[i],beta[i]))
+        #print('alpha,beta: %.2f ,%.2f'%(alpha[i],beta[i]))
         b = BayesianProbability(alpha[i],beta[i])
         if idx.size>0: b.assign_probabilities(gal[idx])
         res.append(b.prob)

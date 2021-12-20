@@ -22,11 +22,12 @@ from copac.membAssignment import clusterCalc, compute_ptaken, compute_ngals
 
 from old_memb.afterburner import old_memb
 
-h=0.7
+h = 0.7
+
 
 class copacabana:
     """Copacabana"""
-    def __init__(self,config_file,dataset='cosmoDC2',simulation=True):
+    def __init__(self, config_file, dataset='cosmoDC2', simulation=True):
         
         self.kwargs       = get_files(config_file)
         self.gfile        = self.kwargs['members_infile']
@@ -55,12 +56,13 @@ class copacabana:
             print('outdir:', self.out_dir)
             print('tile path:', self.tile_path)
 
-    def pre_processing_healpix(self,healpix_list=None):
-        if healpix_list is None: healpix_list = self.tiles
+    def pre_processing_healpix(self, healpix_list=None):
+        if healpix_list is None:
+            healpix_list = self.tiles
         cdata = Table(getdata(self.cfile))
 
         with open(self.yaml_file) as file:
-            cd,gd = yaml.load_all(file.read())
+            cd, gd = yaml.load_all(file.read())
         
         print('cluster columns')
         print(cd)
@@ -115,6 +117,11 @@ class copacabana:
             if self.dataset=='buzzard_v2':
                 print('Running pre_processing_healpix() instead \n')
                 self.pre_processing_healpix(healpix_list=healpix_list)
+
+            if self.dataset=='des_y3':
+                print('Running pre_processing_healpix() instead \n')
+                self.pre_processing_healpix(healpix_list=healpix_list)
+
         else:
             print('master file already exists')
 

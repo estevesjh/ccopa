@@ -209,7 +209,7 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=
     if r200m.size > 0:
         r200m=np.median(r200m) #mean of all possible r200s is measured r200
         if (r200m<0.4)&(nbkg>0.1):
-            print 'bad cluster:',cls_id,'ratio min/max:',np.nanmin(ratio_new),np.nanmax(ratio_new)
+            #print 'bad cluster:',cls_id,'ratio min/max:',np.nanmin(ratio_new),np.nanmax(ratio_new)
             r200m = calcR200(radii,pz,cls_id,z_cls,nbkg*0.8,ra_c,dec_c,DA,rmax=rmax,pixelmap=pixelmap,step=0.05)
 
     if (r200m.size<1):
@@ -222,8 +222,8 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=
 
     return r200m
 
-def checkR200(r200,z_cls,M200=5e13):
-    """ check if r200 is below a cluster with mass 5e13 Msun
+def checkR200(r200,z_cls,M200=1e13):
+    """ check if r200 is below a cluster with mass 1e13 Msun
         in the case of an error it computes R200 from the default Mass (M200)
     """
     # if r200<0.5:
@@ -232,7 +232,6 @@ def checkR200(r200,z_cls,M200=5e13):
     minv = convertR200toM200(r200,z_cls)
     if minv<M200:   
         r200 = convertM200toR200(M200,z_cls)
-        
     return r200
 
 ## PDF radial
@@ -278,7 +277,7 @@ def convertR200toM200(R200,z, nc=200):
     ## M200 in solar masses
     ## R200 in Mpc
     rho = rhoc(z)
-    M200 = nc*4*np.pi*rho*R200**3/3
+    M200 = nc*4*np.pi*rho*(R200*h)**3/3
     return M200
 
 def get_pdfs_function(radii,zgal,pdfr,pdfz):
@@ -422,7 +421,7 @@ def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14, pixelmap=None, pz_fac
         # if compute:
         r200i = calcR200(gal['R']*h,gal['pz0'],cls_id,z_cls,nbkg[idx],rac,dec,da,
                          rmax=3, pz_factor=pz_factor,pixelmap=pixelmap)/h
-        #r200i = checkR200(r200i,z_cls,M200=defaultMass)
+        r200i = checkR200(r200i,z_cls,M200=defaultMass)
 
         raperi = 1.*r200i
 

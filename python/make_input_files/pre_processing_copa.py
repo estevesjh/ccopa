@@ -16,8 +16,8 @@ from time import time
 
 Mpc2cm = 3.086e+24
 rad2deg = 180/np.pi
-h=0.7
-cosmo = FlatLambdaCDM(H0=100*h,Om0=0.285)
+h = 0.7
+cosmo = FlatLambdaCDM(H0=100*h, Om0=0.285)
 #from makeHDF5 import outCosmoDC2
 
 class preProcessing:
