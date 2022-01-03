@@ -20,7 +20,7 @@ rad2deg= 180/np.pi
 h=0.7
 
 #cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
-cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim']
+cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim'.'MASKFRAC']
 
 ## master file
 def make_master_file(cdata,data,file_out,yaml_file,header):

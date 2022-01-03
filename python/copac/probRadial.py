@@ -226,12 +226,12 @@ def checkR200(r200,z_cls,M200=1e13):
     """ check if r200 is below a cluster with mass 1e13 Msun
         in the case of an error it computes R200 from the default Mass (M200)
     """
-    # if r200<0.5:
-    #     print('bad cluster')
-        # r200 = 1.
-    minv = convertR200toM200(r200,z_cls)
-    if minv<M200:   
-        r200 = convertM200toR200(M200,z_cls)
+    if r200<0.3:
+        print('bad cluster')
+        r200 = 0.3
+    # minv = convertR200toM200(r200,z_cls)
+    # if minv<M200:   
+    #     r200 = convertM200toR200(M200,z_cls)
     return r200
 
 ## PDF radial

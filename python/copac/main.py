@@ -142,7 +142,7 @@ def computePmem(g0):
 	return g0
 
 def computeNgals(g,cat):
-	good_indices = np.where(cat['Nbkg']>0)
+	good_indices = np.where(cat['Nbkg']>0.)
 	Ngals = membAssign.computeNgals(g,cat['CID'][good_indices],cat['R200'][good_indices],true_gals=False,col='Pmem')
 	cat['Ngals'] = -1.
 	cat['Ngals'][good_indices] = Ngals

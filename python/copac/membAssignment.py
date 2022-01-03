@@ -215,7 +215,7 @@ def compute_ngals(g,cidx,r_aper,true_gals=False,col='Pmem'):
     if true_gals:
         ngals = [np.count_nonzero(g['True'][idx]) for idx in keys]
     else:
-        ngals = [np.sum(g[col][idx]) for idx in keys]
+        ngals = [np.nansum(g[col][idx]) for idx in keys]
     return np.array(ngals)
 
 def compute_ptaken(g0):
