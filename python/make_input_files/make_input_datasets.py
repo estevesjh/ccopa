@@ -32,7 +32,7 @@ def make_master_file(cdata,data,file_out,yaml_file,header):
 
     ## load clusters with copacabana colnames
     cdata = rename_columns_table(Table(cdata),cd)#rename_dict(cdata,cd)
-    cdata = cdata[cls_columns]
+    #cdata = cdata[cls_columns]
 
     ## Writing master file
     write_master_file(file_out,header,cdata,data)
@@ -437,19 +437,20 @@ def write_copa_output_pandas(fname,gal,cat,run_name,overwrite=True):
     hdf.close()
     pass
 
-def check_group(fname,path):
+def check_group(fname,path,run_name):
     hf = h5py.File(fname,'r')
-
-    all_items = list(allkeys(hf))
+    group = hf[path]
+    all_items = list(group.keys())
+    # all_items = list(allkeys(hf))
     hf.close()
-    return path in all_items
+    return run_name in all_items
 
 def write_copa_output(fname,gal,cat,run_name,overwrite=False):
-    if check_group(fname,'clusters/copa/%s'%(run_name)):
+    if check_group(fname,'clusters/copa/',run_name):
         print('overwriting groups: members and clusters/copa/%s'%(run_name))
         delete_group(fname,u'clusters/copa/%s'%(run_name))
         delete_group(fname,u'members/copa/%s'%(run_name))
-
+    
     fmaster = h5py.File(fname,'a')
     if 'copa' not in fmaster['members'].keys():
         fmaster.create_group('members/copa/')

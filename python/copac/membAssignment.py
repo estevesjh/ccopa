@@ -525,12 +525,13 @@ def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, clus
     pdf_list = [pdfr_list,pdfz_list,pdfc_list,pdfm_list]
 
     print('Compute MaskFraction and Norm')
+    print('Pixelmap:',pixelmap)
     maskFraction = radial.computeMaskFraction(pixelmap, gal, cat[good_clusters], r200[good_clusters], pdfr_list[0], pdfz_list[0], rmed, zvec)
     if pixelmap is not None: del pixelmap
     cat['Area'][good_clusters] = (1-maskFraction)*cat['Area'][good_clusters]
 
     norm, norm_vec, area_vec = computeNorm(gal, cat[good_clusters], raper[good_clusters], nbkg[good_clusters], maskFraction, pz_factor=pz_factor)
-
+    print('Sum maskfrac: %.2f'%(np.sum(maskFraction)))
     print('\n Compute Probabilities')
     galCut = gal[(gal['Gal']==True)&(gal['Rn']<=1.)].copy()
 

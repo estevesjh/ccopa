@@ -378,7 +378,7 @@ def get_maskfrac_montecarlo(pixelmap,pdfs,r200,thetaMpc,albers,ngals=200):
 def computeMaskFraction(pixelmap, gal, cat, r200, pdfr, pdfz, rvec, zvec):
     if pixelmap is None:
         if ('MASKFRAC' in cat.colnames):
-	        return np.array(cat['MASKFRAC'])
+            return np.array(cat['MASKFRAC'])-1.0
         else:
             return np.zeros_like(cat['RA'])
     else:
