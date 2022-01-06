@@ -19,8 +19,8 @@ from projection_radec_to_xy import radec_to_theta,radec_to_xy
 rad2deg= 180/np.pi
 h=0.7
 
-#cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
-cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim'.'MASKFRAC']
+cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
+# cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim','MASKFRAC']
 
 ## master file
 def make_master_file(cdata,data,file_out,yaml_file,header):
@@ -88,6 +88,10 @@ def make_bma_catalog_cut(fname,kwargs,rmax,overwrite=False):
     
     indices = apply_magnitude_selection(fname,kwargs)
     mask    = radii[indices]<=rmax
+
+    if 'FLAG' in fmaster['members/main'].keys():
+        flag = fmaster['members/main/FLAG']
+        mask &= flag < 8
     
     for i in range(3):
         color = mag[indices,i] - mag[indices,i+1]
