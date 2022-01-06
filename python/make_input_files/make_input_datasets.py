@@ -373,6 +373,9 @@ def make_galaxies_cut(mydict,kwargs):
     mask &= (color[:,0]<=3.5)&(color[:,3]<=3.5)&(color[:,4]<=3.5)
     mask &= (color[:,0]>=-1.0)&(color[:,3]>=-1.0)&(color[:,4]>=-1.0)
 
+    if 'FLAG' in mydict.keys():
+        mask &= mydict['FLAG'][:]<8
+
     cut, = np.where(mask)
     
     print('galaxy catalog')
