@@ -135,7 +135,7 @@ class copacabana:
         print('divided in nchunks: %i'%(self.bma_nchunks))
         print('each tile divided in %i chunks \n'%(self.bma_nchunks_per_tile))
 
-        indices = []
+        nsize = 0
         self.bma_temp_input_files = []
         self.bma_temp_output_files= []
         for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
@@ -147,12 +147,10 @@ class copacabana:
             idx = query_indices_catalog(mfile, run_name, self.kwargs, pmem_th=0.01, rmax=3, overwrite=overwrite)
             make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
 
-            indices.append(idx)
             self.bma_temp_input_files.append(temp_infile)
             self.bma_temp_output_files.append(temp_outfile)
             print('sample size: %i \n'%(len(idx)))
-
-        nsize = len(np.array(indices).flatten())
+            nsize += len(idx)
         print('temp files')
         print('Total Sample Size: %i'%nsize)
         print('input :',flatten_list(self.bma_temp_input_files)[-3:])
