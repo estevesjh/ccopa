@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
+from re import escape
 
 import numpy as np
 import pandas as pd
@@ -106,7 +107,7 @@ def query_indices_catalog(fname, run_name, kwargs, pmem_th=0.01, rmax=3, overwri
     check_indices = is_dataset(fname, 'members/bma/indices', run_name)
 
     if check_indices & (not overwrite):
-        mydict = read_hdf5_file_to_dict(fname, path='members/bma/indices')
+        mydict = read_hdf5_file_to_dict(fname, cols=[run_name], path='members/bma/indices/')
         indices = mydict[run_name][:]
     else:
         if run_name == 'all':
@@ -146,18 +147,13 @@ def make_bma_catalog_cut(fname,kwargs,rmax,overwrite=False):
         mask &= (color<=4.)&(color>=-1.)
     
     cut     = indices[mask]
-    
-    # try:
-    #     fmaster.create_group('members/bma/all')
-    #     fmaster.create_dataset('members/bma/all/mid_cut/', data=mid[cut])
-    # except:
-    #     del fmaster['members/bma/all/mid_cut/']
-    #     fmaster.create_dataset('members/bma/all/mid_cut/', data=mid[cut])
-
+    try:
+        fmaster.create_group('members/bma/all')
+    except:
+        pass
     fmaster['members/bma/all'].attrs['rmax'] = rmax
     fmaster['members/bma/all'].attrs['dmag'] = kwargs['mag_selection']
     fmaster['members/bma/all'].attrs['nsize'] = int(cut.size)
-
     bma_indices = mid[cut]
     fmaster.close()
     return bma_indices
@@ -222,7 +218,7 @@ def read_hdf5_file_to_dict(file,cols=None,indices=None,path='/'):
         try:
             mydict[col] = np.array(mygroup[col][:][indices])
         except:
-            print('Error: %s'%(file))
+            mydict[col] = np.array(mygroup[col][:])
     
     hf.close()
 
@@ -244,7 +240,7 @@ def combine_hdf5_files(files,path='/'):
     all_dict=stack_dict(mylist)
     return all_dict, count
 
-def wrap_up_temp_files(fname,files,path='members/bma/',overwrite=False):
+def wrap_up_temp_files(fname,files,run_name,nsize_old,path='members/bma/',overwrite=False):
     ## load temp files into a dict
     table, nmissing = combine_hdf5_files(files,path='bma/')
     nsize = table['mid'].size
@@ -253,17 +249,17 @@ def wrap_up_temp_files(fname,files,path='members/bma/',overwrite=False):
     columns = list(table.keys())
     #columns.remove('mid')
 
-    fmaster   = h5py.File(fname,'a')
-    nsize_old = fmaster[path+'mass/'][:].size
     if nsize_old!= len(table):
-        print('Error: output table doesnt match input table')
-        print(fname,'\n')
-
-    checkColumns= np.sum([not check_not_hf5(fmaster[path],col) for col in columns])
-
+            print('Error: output table doesnt match input table')
+            print(fname,'\n')
+    
+    check_group(fname,path,run_name)
+    fmaster   = h5py.File(fname,'a')
+    group = fmaster[path]
+    checkColumns= np.sum([not check_not_hf5(group[run_name],col) for col in columns])
     if (checkColumns==0)or(overwrite):
         for col in columns:
-            fmaster[path].create_dataset(col,data=table[col][:])
+            group[run_name].create_dataset(col,data=table[col][:])
     else:
         print('Not writing BMA temp out files. Master file has already a BMA output. Overwrite is set to false.')
     fmaster.close()

@@ -140,10 +140,9 @@ class copacabana:
         self.bma_temp_output_files= []
         for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
             print('Healpixel: {:05d}'.format(hpx))
-            temp_infile = [self.temp_file_dir+'/{:05d}/input_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
-            temp_outfile= [self.temp_file_dir+'/{:05d}/output_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
+            temp_infile = [self.temp_file_dir+'/{:05d}/{}_input_{:03d}.hdf5'.format(hpx,run_name,i) for i in range(self.bma_nchunks_per_tile)]
+            temp_outfile= [self.temp_file_dir+'/{:05d}/{}_output_{:03d}.hdf5'.format(hpx,run_name,i) for i in range(self.bma_nchunks_per_tile)]
 
-            #here
             #idx = make_bma_catalog_cut(mfile,self.kwargs,rmax,overwrite=overwrite)
             idx = query_indices_catalog(mfile, run_name, self.kwargs, pmem_th=0.01, rmax=3, overwrite=overwrite)
             make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
@@ -153,9 +152,11 @@ class copacabana:
             self.bma_temp_output_files.append(temp_outfile)
             print('sample size: %i \n'%(len(idx)))
 
+        nsize = len(np.array(indices).flatten())
         print('temp files')
-        print('input :',self.bma_temp_input_files)
-        print('output:',self.bma_temp_output_files)
+        print('Total Sample Size: %i'%nsize)
+        print('input :',flatten_list(self.bma_temp_input_files)[-3:])
+        print('output:',flatten_list(self.bma_temp_output_files)[-3:])
 
         ## run BMA
         print('bma parallel')
@@ -172,14 +173,15 @@ class copacabana:
                 bma_temp_output_files = self.bma_temp_output_files[i]
                 print('bma out files')
                 print('\n'.join(bma_temp_output_files[-3:]))
-                nmissing = wrap_up_temp_files(mfile,bma_temp_output_files,path='members/bma/%s/'%run_name,overwrite=overwrite)           
+                nmissing = wrap_up_temp_files(mfile,bma_temp_output_files,run_name,nsize,path='members/bma/',overwrite=overwrite)           
 
             if nmissing>0:
                 print('there are some missing files, plese check the batch numbers and rerun it.\n')
 
         if remove_temp_files:
-            remove_files(self.bma_temp_output_files)
-            remove_files(self.bma_temp_input_files)
+            print('removing temp files')
+            remove_files(flatten_list(self.bma_temp_output_files))
+            remove_files(flatten_list(self.bma_temp_input_files))
 
 
     def run_bma(self,run_name,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
@@ -209,7 +211,7 @@ class copacabana:
         ## the files are combined only if all the temp files exists
         if combine_files:
             print('wrapping up temp files')
-            nmissing = wrap_up_temp_files(self.master_fname,self.bma_temp_output_files,path='members/bma/%s/v'%run_name,overwrite=overwrite)
+            nmissing = wrap_up_temp_files(self.master_fname,self.bma_temp_output_files,run_name,self.bma_nsize,path='members/bma/',overwrite=overwrite)
             if nmissing>0:
                 print('there are some missing files, plese check the batch numbers and rerun it.\n')
 
