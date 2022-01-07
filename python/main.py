@@ -209,7 +209,7 @@ class copacabana:
         ## the files are combined only if all the temp files exists
         if combine_files:
             print('wrapping up temp files')
-            nmissing = wrap_up_temp_files(self.master_fname,self.bma_temp_output_files,path='members/bma/%s/'%run_name,overwrite=overwrite)
+            nmissing = wrap_up_temp_files(self.master_fname,self.bma_temp_output_files,path='members/bma/%s/v'%run_name,overwrite=overwrite)
             if nmissing>0:
                 print('there are some missing files, plese check the batch numbers and rerun it.\n')
 
