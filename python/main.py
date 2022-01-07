@@ -125,7 +125,7 @@ class copacabana:
         else:
             print('master file already exists')
 
-    def run_bma_healpix(self,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
+    def run_bma_healpix(self,run_name,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
         print('\n')
         print(5*'-----')
         print('Starting BMA')
@@ -143,7 +143,9 @@ class copacabana:
             temp_infile = [self.temp_file_dir+'/{:05d}/input_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
             temp_outfile= [self.temp_file_dir+'/{:05d}/output_{:03d}.hdf5'.format(hpx,i) for i in range(self.bma_nchunks_per_tile)]
 
-            idx = make_bma_catalog_cut(mfile,self.kwargs,rmax,overwrite=overwrite)
+            #here
+            #idx = make_bma_catalog_cut(mfile,self.kwargs,rmax,overwrite=overwrite)
+            idx = query_indices_catalog(mfile, run_name, self.kwargs, pmem_th=0.01, rmax=3, overwrite=overwrite)
             make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
 
             indices.append(idx)
@@ -170,7 +172,7 @@ class copacabana:
                 bma_temp_output_files = self.bma_temp_output_files[i]
                 print('bma out files')
                 print('\n'.join(bma_temp_output_files[-3:]))
-                nmissing = wrap_up_temp_files(mfile,bma_temp_output_files,path='members/bma/',overwrite=overwrite)           
+                nmissing = wrap_up_temp_files(mfile,bma_temp_output_files,path='members/bma/%s/'%run_name,overwrite=overwrite)           
 
             if nmissing>0:
                 print('there are some missing files, plese check the batch numbers and rerun it.\n')
@@ -180,9 +182,10 @@ class copacabana:
             remove_files(self.bma_temp_input_files)
 
 
-    def run_bma(self,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
+    def run_bma(self,run_name,nCores=4,batchStart=0,batchEnd=None,rmax=3,combine_files=True,remove_temp_files=False,overwrite=False):
         print('Starting BMA')
-        indices = make_bma_catalog_cut(self.master_fname,rmax,dmag_lim=2,overwrite=overwrite)
+        #indices = make_bma_catalog_cut(self.master_fname,rmax,dmag_lim=2,overwrite=overwrite)
+        indices = query_indices_catalog(self.master_fname, run_name, self.kwargs, pmem_th=0.01, rmax=3, overwrite=overwrite)
 
         self.bma_indices = indices
         self.bma_nsize   = indices.size
@@ -206,7 +209,7 @@ class copacabana:
         ## the files are combined only if all the temp files exists
         if combine_files:
             print('wrapping up temp files')
-            nmissing = wrap_up_temp_files(self.master_fname,self.bma_temp_output_files,path='members/bma/',overwrite=overwrite)           
+            nmissing = wrap_up_temp_files(self.master_fname,self.bma_temp_output_files,path='members/bma/%s/'%run_name,overwrite=overwrite)
             if nmissing>0:
                 print('there are some missing files, plese check the batch numbers and rerun it.\n')
 

@@ -72,7 +72,55 @@ def write_master_file(name_file,header,table0,table1,columns1=None):
     
 #     return mdata
 
-### BMA 
+# BMA 
+def write_indices_out(indices,fname,path,col='02Lstar',overwrite=False):    
+    fmaster = h5py.File(fname, 'a')
+    group = fmaster[path]
+    try:
+        group.create_dataset(col,data=indices)
+    except:
+        if overwrite:
+            del group[col]
+            group.create_dataset(col,data=indices)
+    fmaster.close()
+
+def check_group(fname, path, group):
+    fmaster = h5py.File(fname, 'a')
+    check = group in list(fmaster[path].keys())
+    if not check:
+        fmaster[path].create_group(group)
+    fmaster.close()
+    return check
+
+def is_dataset(fname,path,daset_name):
+    fmaster = h5py.File(fname, 'r')
+    check = daset_name in list(fmaster[path].keys())
+    fmaster.close()
+    return check
+
+def query_indices_catalog(fname, run_name, kwargs, pmem_th=0.01, rmax=3, overwrite=False):
+    check_group(fname, 'members', 'bma')
+    check_group(fname, 'members/bma', 'indices')
+
+    # check if indices vector exists
+    check_indices = is_dataset(fname, 'members/bma/indices', run_name)
+
+    if check_indices & (not overwrite):
+        mydict = read_hdf5_file_to_dict(fname, path='members/bma/indices')
+        indices = mydict[run_name][:]
+    else:
+        if run_name == 'all':
+            indices = make_bma_catalog_cut(fname, kwargs, rmax)
+        else:
+            mydict = read_hdf5_file_to_dict(fname, cols=['Pmem', 'mid'],
+                                            path='members/copa/%s'%(run_name))
+            cut = mydict['Pmem'] >= pmem_th
+            indices = np.array(mydict['mid'][:])[cut]
+        
+        write_indices_out(indices, fname, 'members/bma/indices',
+                          col=run_name, overwrite=overwrite)
+    return indices
+
 def make_bma_catalog_cut(fname,kwargs,rmax,overwrite=False):
     fmaster = h5py.File(fname, "a")
 
@@ -98,27 +146,19 @@ def make_bma_catalog_cut(fname,kwargs,rmax,overwrite=False):
         mask &= (color<=4.)&(color>=-1.)
     
     cut     = indices[mask]
-    try:
-        fmaster.create_group('members/bma/')
-        fmaster.create_dataset('members/bma/mid_cut/', data=mid[cut])
-    except:
-        del fmaster['members/bma/mid_cut/']
-        fmaster.create_dataset('members/bma/mid_cut/', data=mid[cut])
+    
+    # try:
+    #     fmaster.create_group('members/bma/all')
+    #     fmaster.create_dataset('members/bma/all/mid_cut/', data=mid[cut])
+    # except:
+    #     del fmaster['members/bma/all/mid_cut/']
+    #     fmaster.create_dataset('members/bma/all/mid_cut/', data=mid[cut])
 
-    fmaster['members/bma/'].attrs['rmax'] = rmax
-    fmaster['members/bma/'].attrs['dmag'] = kwargs['mag_selection']
-    fmaster['members/bma/'].attrs['nsize'] = int(cut.size)
+    fmaster['members/bma/all'].attrs['rmax'] = rmax
+    fmaster['members/bma/all'].attrs['dmag'] = kwargs['mag_selection']
+    fmaster['members/bma/all'].attrs['nsize'] = int(cut.size)
 
     bma_indices = mid[cut]
-    # else:
-    #     bma_indices = fmaster['members/bma/mid_cut'][:]
-    #     if overwrite:
-    #         print('in construction')
-    #         # exclude_group(fmaster,'members/bma')
-    #         # fmaster.close()
-    #         # make_bma_catalog_cut(fname,rmax,dmag_lim=dmag_lim)
-    #     else:
-    #         print('BMA cut already exists; overwrite=False')
     fmaster.close()
     return bma_indices
 
@@ -214,7 +254,7 @@ def wrap_up_temp_files(fname,files,path='members/bma/',overwrite=False):
     #columns.remove('mid')
 
     fmaster   = h5py.File(fname,'a')
-    nsize_old = fmaster[path+'mid_cut/'][:].size
+    nsize_old = fmaster[path+'mass/'][:].size
     if nsize_old!= len(table):
         print('Error: output table doesnt match input table')
         print(fname,'\n')
@@ -437,51 +477,42 @@ def write_copa_output_pandas(fname,gal,cat,run_name,overwrite=True):
     hdf.close()
     pass
 
-def check_group(fname,path,run_name):
-    hf = h5py.File(fname,'r')
-    group = hf[path]
-    all_items = list(group.keys())
-    # all_items = list(allkeys(hf))
-    hf.close()
-    return run_name in all_items
+# def check_group(fname,path,run_name):
+#     hf = h5py.File(fname,'r')
+#     # group = hf[path]
+#     # all_items = list(group.keys())
+#     # # all_items = list(allkeys(hf))
+#     # hf.close()
+#     # mask = run_name in all_items
+#     mask = "%s/%s"%(path,run_name) in hf
+#     print('Check Group:',mask)
+#     return mask
 
 def write_copa_output(fname,gal,cat,run_name,overwrite=False):
-    if check_group(fname,'clusters/copa/',run_name):
+    check_group(fname,'clusters','copa')
+    if check_group(fname,'clusters/copa/',run_name)&overwrite:
         print('overwriting groups: members and clusters/copa/%s'%(run_name))
         delete_group(fname,u'clusters/copa/%s'%(run_name))
         delete_group(fname,u'members/copa/%s'%(run_name))
+
+        ## create group again
+        check_group(fname,'clusters/copa/',run_name)
+        check_group(fname,'members/copa/',run_name)
     
     fmaster = h5py.File(fname,'a')
-    if 'copa' not in fmaster['members'].keys():
-        fmaster.create_group('members/copa/')
-
-    ## save galaxy output
-    path = 'members/copa/%s'%run_name
-    if run_name not in fmaster['members/copa/'].keys():
-        fmaster.create_group(path)
-    
+    path = u'members/copa/%s'%(run_name)
     gout = fmaster[path]
     cols = gal.colnames
     check= cols[0] not in gout.keys()
-    
     if check :
         for col in cols: gout.create_dataset(col,data=gal[col])
-            
-    ## save cluster output
-    if 'copa' not in fmaster['clusters'].keys():
-        fmaster.create_group('clusters/copa/')
-
-    path = 'clusters/copa/%s'%run_name
-    if run_name not in fmaster['clusters/copa/'].keys():
-        fmaster.create_group(path)
     
+    path = u'clusters/copa/%s'%(run_name)
     cout = fmaster[path]
     cols = cat.colnames
     check= cols[0] not in cout.keys()
-
     if check:
         for col in cols: cout.create_dataset(col,data=cat[col])
-
     fmaster.close()
     pass
 

@@ -78,6 +78,10 @@ class BayesianProbability:
         prior = join_pdfs(self.pvec,self.likelihood,self.betaDist.pdf(self.pvec))
         pm0   = mean_pdf(self.pvec,prior)
 
+        # avoid bugs
+        if pm0 <= 0.:
+            pm0 = self.self.prob['prior']['flat'][:]
+
         self.prob['prior']['beta'] = pm0
         self.prior = prior
 
@@ -131,7 +135,16 @@ class BayesianProbability:
         ## old probabilities definition
         for label,name in zip(self.labels,self.names):
             self.assign_prob_old(name,label)
+
+        # check the beta prior probabilitiy
+        self.check_beta_prob()
     
+    def check_beta_prob(self):
+        # check if the beta prior produces non zero probalities
+        ngals = np.nansum(self.prob['Pmem']['beta'][:]).copy()
+        if ngals == 0:
+            self.prob['Pmem']['beta'][:] = self.prob['Pmem']['flat'][:]
+
     def compute_ngals(self):
         for col in ['flat','beta','old']:
             self.prob['Ngals'][col] = np.nansum(self.prob['Pmem'][col][:]).copy()
