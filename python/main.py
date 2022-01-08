@@ -145,7 +145,12 @@ class copacabana:
 
             #idx = make_bma_catalog_cut(mfile,self.kwargs,rmax,overwrite=overwrite)
             idx = query_indices_catalog(mfile, run_name, self.kwargs, pmem_th=0.01, rmax=3, overwrite=overwrite)
-            make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),self.bma_nchunks_per_tile)
+            ratio = 1.*len(idx)/self.bma_nchunks_per_tile
+            if ratio<10:
+                print('Esse caso')
+                temp_infile = [temp_infile[0]]
+                temp_outfile= [temp_outfile[0]]
+            make_bma_input_temp_file(mfile,temp_infile,idx,len(idx),len(temp_infile))
 
             self.bma_temp_input_files.append(temp_infile)
             self.bma_temp_output_files.append(temp_outfile)

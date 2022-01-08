@@ -15,7 +15,7 @@ from astropy.table import Table, vstack, join
 from astropy.io.fits import getdata
 
 from upload_cosmoDC2 import upload_cosmoDC2_hf5_files, stack_dict
-from projection_radec_to_xy import radec_to_theta,radec_to_xy
+from projection_radec_to_xy import nC, radec_to_theta,radec_to_xy
 
 rad2deg= 180/np.pi
 h=0.7
@@ -163,7 +163,10 @@ def make_bma_input_temp_file(fname,files,indices,nsize,nchunks):
     mcols       = ['mid','CID','redshift','mag','magerr']                ## master/main/ columns
     out_columns = ['mid','CID','redshift','i','ierr','gr','ri','iz','grerr','rierr','izerr']
 
-    if not os.path.isfile(files[0]):
+    count = np.count_nonzero([os.path.isfile(file) for file in files])
+    print('Numero de counts: %i'%count)
+    print('Numero de chunks: %i'%nchunks)
+    if count!=nchunks:
         mydict = read_hdf5_file_to_dict(fname,indices=indices,cols=mcols,path='members/main/')
 
         out= dict().fromkeys(out_columns)
