@@ -18,10 +18,12 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     
     if run in fmaster['members/bma/'].keys():
         path = 'members/bma/%s/'%run
+        bmid = fmaster['members/bma/indices/%s'%run][:]
+
     else:
         path = 'members/bma/'
-
-    bmid = fmaster[path+'mid'][:]
+        bmid = fmaster[path+'mid'][:]
+        
     bcid = fmaster[path+'CID'][:]
     mass = fmaster[path+'mass'][:]
 

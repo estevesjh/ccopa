@@ -101,7 +101,8 @@ def is_dataset(fname,path,daset_name):
 
 def query_indices_catalog(fname, run_name, kwargs, pmem_th=0.01, rmax=3, overwrite=False):
     check_group(fname, 'members', 'bma')
-    check_group(fname, 'members/bma', 'indices')
+    check_group(fname, 'members/bma/', 'indices')
+    check_group(fname, 'members/bma/', run_name)
 
     # check if indices vector exists
     check_indices = is_dataset(fname, 'members/bma/indices', run_name)
@@ -120,6 +121,8 @@ def query_indices_catalog(fname, run_name, kwargs, pmem_th=0.01, rmax=3, overwri
         
         write_indices_out(indices, fname, 'members/bma/indices',
                           col=run_name, overwrite=overwrite)
+        write_indices_out(indices, fname, 'members/bma/%s'%(run_name),
+                          col='mid', overwrite=overwrite)
     return indices
 
 def make_bma_catalog_cut(fname,kwargs,rmax,overwrite=False):
