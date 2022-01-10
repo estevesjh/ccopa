@@ -16,9 +16,15 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     tmid = fmaster['members/main/mid' ][:]
     tmem = fmaster['members/main/True'][:]
     
-    bmid = fmaster['members/bma/mid'][:]
-    bcid = fmaster['members/bma/CID'][:]
-    mass = fmaster['members/bma/mass'][:]
+    if run in fmaster['members/bma/'].keys():
+        path = 'members/bma/%s/'%run
+    else:
+        path = 'members/bma/'
+
+    bmid = fmaster[path+'mid'][:]
+    bcid = fmaster[path+'CID'][:]
+    mass = fmaster[path+'mass'][:]
+
     fmaster.close()
 
     # print 'Matching BMA with Copa output'
@@ -83,9 +89,15 @@ def compute_mu_star(fname,run,nCores=12):
     tmid = fmaster['members/main/mid' ][:]
     tmem = fmaster['members/main/True'][:]
     
-    bmid = fmaster['members/bma/mid'][:]
-    bcid = fmaster['members/bma/CID'][:]
-    mass = fmaster['members/bma/mass'][:]
+    if run in fmaster['members/bma/'].keys():
+        path = 'members/bma/%s/'%run
+    else:
+        path = 'members/bma/'
+
+    bmid = fmaster[path+'mid'][:]
+    bcid = fmaster[path+'CID'][:]
+    mass = fmaster[path+'mass'][:]
+    fmaster.close()
 
     # print 'Matching BMA with Copa output'
     idx = np.sort(midx)
@@ -115,6 +127,9 @@ def compute_mu_star(fname,run,nCores=12):
 
     # print 'mu star output size:', mu_star.size
 
+    fmaster = h5py.File(fname,'a')
+    cluster = fmaster['clusters/copa/%s'%run]
+
     if 'MU' not in cluster.keys():
         cluster.create_dataset('MU',data=mu_star)
         cluster.create_dataset('MU_ERR_JK',data=mu_star_err)
@@ -123,8 +138,8 @@ def compute_mu_star(fname,run,nCores=12):
         del cluster['MU_ERR_JK']
         cluster.create_dataset('MU',data=mu_star)
         cluster.create_dataset('MU_ERR_JK',data=mu_star_err)
-        
     fmaster.close()
+
 
 def _compute_muStar(pmem,mass):
     if len(pmem)==0:
