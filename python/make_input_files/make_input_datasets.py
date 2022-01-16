@@ -87,7 +87,12 @@ def write_indices_out(indices,fname,path,col='02Lstar',overwrite=False):
 
 def check_group(fname, path, group):
     fmaster = h5py.File(fname, 'a')
-    check = group in list(fmaster[path].keys())
+    try:
+        #print('1, path: %s, group: %s'%(path,group))
+        check = group in list(fmaster[path].keys())
+    except:
+        #print('2, path: %s, group: %s'%(path,group))
+        check = False
     if not check:
         fmaster[path].create_group(group)
     fmaster.close()
@@ -492,12 +497,17 @@ def write_copa_output_pandas(fname,gal,cat,run_name,overwrite=True):
 
 def write_copa_output(fname,gal,cat,run_name,overwrite=False):
     check_group(fname,'clusters','copa')
-    if check_group(fname,'clusters/copa/',run_name)&overwrite:
+    check_group(fname,'members','copa')
+
+    if check_group(fname,'clusters/copa/',run_name) & check_group(fname,'members/copa/',run_name) & overwrite:
         print('overwriting groups: members and clusters/copa/%s'%(run_name))
         delete_group(fname,u'clusters/copa/%s'%(run_name))
         delete_group(fname,u'members/copa/%s'%(run_name))
 
         ## create group again
+        check_group(fname,'clusters/copa/',run_name)
+        check_group(fname,'members/copa/',run_name)
+    else:
         check_group(fname,'clusters/copa/',run_name)
         check_group(fname,'members/copa/',run_name)
     
