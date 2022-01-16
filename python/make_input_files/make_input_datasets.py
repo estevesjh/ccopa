@@ -270,7 +270,13 @@ def wrap_up_temp_files(fname,files,run_name,nsize_old,path='members/bma/',overwr
     checkColumns= np.sum([not check_not_hf5(group[run_name],col) for col in columns])
     if (checkColumns==0)or(overwrite):
         for col in columns:
-            group[run_name].create_dataset(col,data=table[col][:])
+            try:
+                group[run_name].create_dataset(col,data=table[col][:])
+            except:
+                group_run = group[run_name]
+                del group_run[col]
+                group[run_name].create_dataset(col,data=table[col][:])
+
     else:
         print('Not writing BMA temp out files. Master file has already a BMA output. Overwrite is set to false.')
     fmaster.close()
