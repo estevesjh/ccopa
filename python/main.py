@@ -27,6 +27,7 @@ h = 0.7
 
 class copacabana:
     """Copacabana"""
+
     def __init__(self, config_file, dataset='cosmoDC2', simulation=True):
         
         self.kwargs       = get_files(config_file)
@@ -56,51 +57,58 @@ class copacabana:
             print('outdir:', self.out_dir)
             print('tile path:', self.tile_path)
 
-    def pre_processing_healpix(self, healpix_list=None):
+    # def pre_processing_healpix(self, healpix_list=None):
+    #     if healpix_list is None:
+    #         healpix_list = self.tiles
+    #     cdata = Table(getdata(self.cfile))
+
+    #     with open(self.yaml_file) as file:
+    #         cd, gd = yaml.load_all(file.read())
+        
+    #     print('cluster columns')
+    #     print(cd)
+
+    #     for tile in healpix_list:
+    #         tile        = int(tile)
+    #         infile      = self.gfile.format(tile)
+    #         mfile       = self.master_fname_tile.format(tile)
+
+    #         mask   = cdata[cd['tile']]==tile
+    #         print('tile : %i'%tile)
+    #         print('counts: %i'%(np.count_nonzero(mask)))
+            
+    #         if (np.count_nonzero(mask)>0) & os.path.isfile(infile):
+    #             ctile = table_to_dict(cdata[mask])
+    #             print('Loading Data')
+    #             print('infile: %s'%infile)
+    #             t0     = time()
+    #             data   = table_to_dict(upload_dataFrame(infile,keys='members'))
+                
+    #             print('ngals : %.2e'%(len(data[gd['RA']][:])))
+    #             pp = preProcessing(ctile,data,
+    #                                dataset=self.dataset,auxfile=self.kwargs['mag_model_file'],
+    #                                columns_cls=cd, columns_gal=gd)
+
+    #             pp.make_cutouts(rmax=8)
+    #             pp.make_relative_variables(z_window=0.03,nCores=60)
+    #             pp.assign_true_members()
+    #             pp.apply_mag_cut(dmag_cut=3)
+                
+    #             print('Writing Master File')
+    #             make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
+
+    #             partial_time = time()-t0
+    #             print('Partial time: %.2f s \n'%(partial_time))
+    #         else:
+    #             print('Error: the tile %i is empty\n'%tile)
+    #     
+    def pre_processing_healpix(self, healpix_list=None, nCores=10):
         if healpix_list is None:
             healpix_list = self.tiles
-        cdata = Table(getdata(self.cfile))
-
-        with open(self.yaml_file) as file:
-            cd, gd = yaml.load_all(file.read())
+            if len(healpix_list)<nCores: nCores=len(healpix_list)
         
-        print('cluster columns')
-        print(cd)
-
-        for tile in healpix_list:
-            tile        = int(tile)
-            infile      = self.gfile.format(tile)
-            mfile       = self.master_fname_tile.format(tile)
-
-            mask   = cdata[cd['tile']]==tile
-            ctile = table_to_dict(cdata[mask])
-
-            print('tile : %i'%tile)
-            print('counts: %i'%(np.count_nonzero(mask)))
-            
-            if np.count_nonzero(mask)>0:
-                print('Loading Data')
-                print('infile: %s'%infile)
-                t0     = time()
-                data   = table_to_dict(upload_dataFrame(infile,keys='members'))
-                
-                print('ngals : %.2e'%(len(data[gd['RA']][:])))
-                pp = preProcessing(ctile,data,
-                                   dataset=self.dataset,auxfile=self.kwargs['mag_model_file'],
-                                   columns_cls=cd, columns_gal=gd)
-
-                pp.make_cutouts(rmax=8)
-                pp.make_relative_variables(z_window=0.03,nCores=60)
-                pp.assign_true_members()
-                pp.apply_mag_cut(dmag_cut=3)
-                
-                print('Writing Master File')
-                make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
-
-                partial_time = time()-t0
-                print('Partial time: %.2f s \n'%(partial_time))
-            else:
-                print('Error: the tile %i is empty\n'%tile)
+        Parallel(n_jobs=nCores)(delayed(_pre_processing_healpix)(self, tile) for tile in healpix_list)
+        pass
 
     def make_input_file(self,healpix_list=None,overwrite=False):
         t0 = time()
@@ -491,6 +499,48 @@ def enablePrint():
 
 def flatten_list(regular_list):
     return sum(regular_list,[])
+
+def _pre_processing_healpix(self,tile):
+    cdata = Table(getdata(self.cfile))
+
+    with open(self.yaml_file) as file:
+        cd, gd = yaml.load_all(file.read())
+    
+    print('cluster columns')
+    print(cd)
+    tile        = int(tile)
+    infile      = self.gfile.format(tile)
+    mfile       = self.master_fname_tile.format(tile)
+
+    mask   = cdata[cd['tile']]==tile
+    print('tile : %i'%tile)
+    print('counts: %i'%(np.count_nonzero(mask)))
+    
+    if (np.count_nonzero(mask)>0) & os.path.isfile(infile):
+        ctile = table_to_dict(cdata[mask])
+        print('Loading Data')
+        print('infile: %s'%infile)
+        t0     = time()
+        data   = table_to_dict(upload_dataFrame(infile,keys='members'))
+        
+        print('ngals : %.2e'%(len(data[gd['RA']][:])))
+        pp = preProcessing(ctile,data,
+                            dataset=self.dataset,auxfile=self.kwargs['mag_model_file'],
+                            columns_cls=cd, columns_gal=gd)
+
+        pp.make_cutouts(rmax=8)
+        pp.make_relative_variables(z_window=0.03,nCores=60)
+        pp.assign_true_members()
+        pp.apply_mag_cut(dmag_cut=3)
+        
+        print('Writing Master File')
+        make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
+
+        partial_time = time()-t0
+        print('Partial time: %.2f s \n'%(partial_time))
+    else:
+        print('Error: the tile %i is empty\n'%tile)
+
 
 if __name__ == 'main':
     ## run example
