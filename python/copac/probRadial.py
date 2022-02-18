@@ -26,13 +26,13 @@ Mpc2cm = 3.086e+24
 rad2deg= 180/np.pi
 h=0.7
 
-## set colossus comsology as the same from astropy
-from colossus.halo import profile_dk14
-from colossus.cosmology import cosmology
-sigma8 = 0.82
-ns = 0.96
-colossus_cosmo = cosmology.fromAstropy(cosmo, sigma8, ns, name = 'my_cosmo')
-cosmology.setCurrent(colossus_cosmo)
+# ## set colossus comsology as the same from astropy
+# from colossus.halo import profile_dk14
+# from colossus.cosmology import cosmology
+# sigma8 = 0.82
+# ns = 0.96
+# colossus_cosmo = cosmology.fromAstropy(cosmo, sigma8, ns, name = 'my_cosmo')
+# cosmology.setCurrent(colossus_cosmo)
 
 def get_profile_DK14(rvec,m200,z):
     ## rhos, rs, rt, alpha, beta, gamma

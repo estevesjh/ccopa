@@ -557,7 +557,7 @@ def load_copa_output(fname,dtype,run,old_code=False):
     if dtype=='members':
         ## load copa, bma and members
         copa_dict = read_hdf5_file_to_dict(fname,path='members/copa/%s'%(run))
-        # bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/')
+        bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/%s'%(run))
 
         # midxs   = np.sort(copa_dict['mid'][:])
         # members = read_hdf5_file_to_dict(fname,indices=midxs,cols=None,path='members/main/') 
@@ -565,7 +565,7 @@ def load_copa_output(fname,dtype,run,old_code=False):
         # print('Matching Copa output with main and BMA')
         # main = Table(members)
         copa = Table(copa_dict)
-        # bma  = Table(bma_dict)
+        bma  = Table(bma_dict)
         
         # ## repeated cols
         # main.remove_columns(['GID','z','zerr','zoffset','pz0']) ## taking only the photoz info from the output
@@ -575,8 +575,8 @@ def load_copa_output(fname,dtype,run,old_code=False):
         # else:
         #     toto = copa
         
-        # gal  = join(toto, bma, keys=['mid','CID'])
-        return copa
+        gal  = join(copa, bma, keys=['mid','CID'])
+        return gal
 
 ### auxialry functions
 

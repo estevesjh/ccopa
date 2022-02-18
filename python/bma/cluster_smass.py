@@ -77,7 +77,7 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     fmaster.close()
 
 
-def compute_mu_star(fname,run,nCores=12):
+def compute_mu_star(fname, run, nCores=12, mass_label='mass'):
     fmaster = h5py.File(fname,'a')
 
     cluster = fmaster['clusters/copa/%s'%run]
@@ -96,9 +96,14 @@ def compute_mu_star(fname,run,nCores=12):
     else:
         path = 'members/bma/'
 
+    if mass_label is 'mass_ml':
+        path = 'members/copa/%s/'%run
+        
+    print('check: %s'%(path+mass_label))
+
     bmid = fmaster[path+'mid'][:]
     bcid = fmaster[path+'CID'][:]
-    mass = fmaster[path+'mass'][:]
+    mass = fmaster[path+mass_label][:]
     fmaster.close()
 
     # print 'Matching BMA with Copa output'
@@ -120,8 +125,9 @@ def compute_mu_star(fname,run,nCores=12):
         mu_star     = np.array([res[0] for res in out])
         mu_star_err = np.array([res[1] for res in out])
     else:
-       mu_star = np.empty(0)
-       mu_star_err = np.empty(0)
+        print('Error Mu-Star: No galaxies matched')
+        mu_star = np.empty(0)
+        mu_star_err = np.empty(0)
 
     # res   = np.array([_compute_muStar(nbma['Pmem'][ix],nbma['mass'][ix]) for ix in keys])
     # mu_star     = res[:,0]
@@ -129,19 +135,36 @@ def compute_mu_star(fname,run,nCores=12):
 
     # print 'mu star output size:', mu_star.size
 
-    fmaster = h5py.File(fname,'a')
-    cluster = fmaster['clusters/copa/%s'%run]
+    mu_star_label = 'MU'
+    if mass_label!='mass':
+        mu_star_label += mass_label[4:].upper()
 
-    if 'MU' not in cluster.keys():
-        cluster.create_dataset('MU',data=mu_star)
-        cluster.create_dataset('MU_ERR_JK',data=mu_star_err)
-    else:
-        del cluster['MU']
-        del cluster['MU_ERR_JK']
-        cluster.create_dataset('MU',data=mu_star)
-        cluster.create_dataset('MU_ERR_JK',data=mu_star_err)
+    write_indices_out(mu_star,fname,'clusters/copa/%s'%run,col=mu_star_label)
+    write_indices_out(mu_star_err,fname,'clusters/copa/%s'%run,col=mu_star_label+'_ERR_JK')
+
+    # fmaster = h5py.File(fname,'a')
+    # cluster = fmaster['clusters/copa/%s'%run]
+        
+    # if mu_star_label not in cluster.keys():
+    #     cluster.create_dataset(mu_star_label,data=mu_star)
+    #     cluster.create_dataset(mu_star_label+'_ERR_JK',data=mu_star_err)
+    # else:
+    #     del cluster[mu_star_label]
+    #     del cluster[mu_star_label+'_ERR_JK']
+    #     cluster.create_dataset(mu_star_label,data=mu_star)
+    #     cluster.create_dataset(mu_star_label+'_ERR_JK',data=mu_star_err)
+    # fmaster.close()
+
+def write_indices_out(indices,fname,path,col='02Lstar',overwrite=False):    
+    fmaster = h5py.File(fname, 'a')
+    group = fmaster[path]
+    try:
+        group.create_dataset(col,data=indices)
+    except:
+        if overwrite:
+            del group[col]
+            group.create_dataset(col,data=indices)
     fmaster.close()
-
 
 def _compute_muStar(pmem,mass):
     if len(pmem)==0:

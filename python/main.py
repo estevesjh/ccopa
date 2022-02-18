@@ -17,10 +17,10 @@ from make_input_files.pre_processing_copa import preProcessing
 
 import bma.smass as smass
 from bma.cluster_smass import compute_mu_star, compute_mu_star_true
-
 from copac.membAssignment import clusterCalc, compute_ptaken, compute_ngals
-
 from old_memb.afterburner import old_memb
+from galpro.compute_des_stellar_mass import compute_stellar_mass, load_galpro_model
+from galpro.convert_mag_to_lupmag import get_input_galpro
 
 h = 0.7
 
@@ -102,10 +102,10 @@ class copacabana:
     #         else:
     #             print('Error: the tile %i is empty\n'%tile)
     #     
-    def pre_processing_healpix(self, healpix_list=None, nCores=10):
+    def pre_processing_healpix(self, healpix_list=None, nCores=20):
         if healpix_list is None:
             healpix_list = self.tiles
-            if len(healpix_list)<nCores: nCores=len(healpix_list)
+            #if len(healpix_list)<nCores: nCores=len(healpix_list)
         
         Parallel(n_jobs=nCores)(delayed(_pre_processing_healpix)(self, tile) for tile in healpix_list)
         pass
@@ -250,6 +250,25 @@ class copacabana:
         Parallel(n_jobs=nCores)(
             delayed(smass.calc_copa_v2)(infiles[i], outfiles[i], inPath) for i in batches)
         print('ended smass calc')
+
+    def run_galpro(self,path='members/main/'):
+        print('Starting Galpro')
+        galpro = load_galpro_model(self.kwargs['galpro_path'])
+        for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
+            print('Runing tile: %i'%hpx)
+            t0 = time()
+            data = read_hdf5_file_to_dict(mfile,cols=['mag','redshift'],indices=None,path=path)
+            if len(data['mag'][:])>0.:
+                galpro.x_test = get_input_galpro(np.array(data['mag'][:]),np.array(data['redshift'][:]))
+                smass = galpro.model.predict(galpro.x_test)
+                # smass = compute_stellar_mass(np.array(data['mag'][:]),np.array(data['redshift'][:]),self.kwargs['galpro_path'])    
+            else:
+                print('Error: galaxy sample empty')
+                smass = np.empty(0)
+
+            write_indices_out(smass,mfile,path,col='mass_ml',overwrite=True)
+            tt = (time()-t0)/60
+            print('stellarMass partial time: %.2f min \n'%(tt))
 
     def run_copa_healpix(self,run_name,pz_file=None,nCores=20,old_code=False):
         print('\nStarting Copa')
@@ -412,7 +431,7 @@ class copacabana:
         else:
             return load_copa_output(self.master_fname,dtype,run)
 
-    def compute_muStar(self,run,true_members=False,overwrite=True,nCores=20):
+    def compute_muStar(self,run,mass_label='mass',true_members=False,overwrite=True,nCores=20):
         if not self.healpix:
             fmaster = h5py.File(self.master_fname,'r')
             check   = 'mass' in fmaster['members/bma/'].keys()
@@ -424,12 +443,13 @@ class copacabana:
 
             if check2 or overwrite: 
                 # if true_members:
-                compute_mu_star(self.master_fname,run,nCores=nCores)
+                compute_mu_star(self.master_fname,run,mass_label=mass_label,nCores=nCores)
                 if self.simulation:
                     compute_mu_star_true(self.master_fname,run,ngals=True,nCores=nCores)
         else:
             for mfile in self.master_fname_tile_list:
-                compute_mu_star(mfile,run,nCores=nCores)
+                print(mfile)
+                compute_mu_star(mfile,run,mass_label=mass_label,nCores=nCores)
                 if self.simulation:
                     compute_mu_star_true(mfile,run,ngals=True,nCores=nCores)
 
@@ -516,7 +536,7 @@ def _pre_processing_healpix(self,tile):
     print('tile : %i'%tile)
     print('counts: %i'%(np.count_nonzero(mask)))
     
-    if (np.count_nonzero(mask)>0) & os.path.isfile(infile):
+    if (np.count_nonzero(mask)>0) & os.path.isfile(infile) &(not os.path.isfile(mfile)):
         ctile = table_to_dict(cdata[mask])
         print('Loading Data')
         print('infile: %s'%infile)
