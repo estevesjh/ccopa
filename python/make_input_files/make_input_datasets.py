@@ -20,8 +20,8 @@ from projection_radec_to_xy import nC, radec_to_theta,radec_to_xy
 rad2deg= 180/np.pi
 h=0.7
 
-cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
-# cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim','MASKFRAC']
+#cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','magLim']
+cls_columns = ['CID','redshift','RA','DEC','M200_true','R200_true','DA','magLim','MASKFRAC']
 
 ## master file
 def make_master_file(cdata,data,file_out,yaml_file,header):
@@ -33,7 +33,7 @@ def make_master_file(cdata,data,file_out,yaml_file,header):
 
     ## load clusters with copacabana colnames
     cdata = rename_columns_table(Table(cdata),cd)#rename_dict(cdata,cd)
-    #cdata = cdata[cls_columns]
+    cdata = cdata[cls_columns]
 
     ## Writing master file
     write_master_file(file_out,header,cdata,data)
@@ -315,7 +315,7 @@ def load_copa_input_catalog(fname,kwargs,pz_file=None,simulation=True):
     mydict1 = compute_physical_coordinates(mydict1,cdata)
 
     # print('computing the number of galaxies in each cluster')
-    # cdata  = count_input_gals(cdata,mydict1)
+    cdata  = count_input_gals(cdata,mydict1)
     table   = dict_to_table(mydict1)
     
     return table, cdata
@@ -374,11 +374,12 @@ def compute_physical_coordinates(galaxies,clusters):
     galaxies = ini_new_dict_columns(galaxies,['dx','dy','theta'],values=[-99,-99,-99],size=ra.size)
 
     for i,idx in enumerate(keys):
-        dx,dy,_ = radec_to_xy(ra[idx],dec[idx],rac[i],decc[i],Mpc2theta[i]) ## Mpc
-        theta   = radec_to_theta(ra[idx],dec[idx],rac[i],decc[i])           ## degrees
-        galaxies['dx'][idx]    = dx
-        galaxies['dy'][idx]    = dy
-        galaxies['theta'][idx] = theta
+	if idx.size>0:
+	        dx,dy,_ = radec_to_xy(ra[idx],dec[idx],rac[i],decc[i],Mpc2theta[i]) ## Mpc
+       		theta   = radec_to_theta(ra[idx],dec[idx],rac[i],decc[i])           ## degrees
+       		galaxies['dx'][idx]    = dx
+        	galaxies['dy'][idx]    = dy
+        	galaxies['theta'][idx] = theta
     return galaxies
 
 def chunks(ids1, ids2):
@@ -547,7 +548,7 @@ def delete_group(fname,path):
         print('Error: failed to delete group %s'%path)
         return
     
-def load_copa_output(fname,dtype,run,old_code=False):
+def load_copa_output(fname,dtype,run,old_code=False,is_bma=False):
     if dtype=='cluster':
         ## load copa and bma
         copa  = read_hdf5_file_to_dict(fname,path='clusters/copa/%s/'%(run))
@@ -557,25 +558,17 @@ def load_copa_output(fname,dtype,run,old_code=False):
     if dtype=='members':
         ## load copa, bma and members
         copa_dict = read_hdf5_file_to_dict(fname,path='members/copa/%s'%(run))
-        bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/%s'%(run))
-
-        # midxs   = np.sort(copa_dict['mid'][:])
-        # members = read_hdf5_file_to_dict(fname,indices=midxs,cols=None,path='members/main/') 
-        
-        # print('Matching Copa output with main and BMA')
-        # main = Table(members)
-        copa = Table(copa_dict)
-        bma  = Table(bma_dict)
-        
-        # ## repeated cols
-        # main.remove_columns(['GID','z','zerr','zoffset','pz0']) ## taking only the photoz info from the output
-
-        # if not old_code:
-        #     toto = join(main,copa,keys=['mid','CID']) ## matching with the mid and the cluster ID
-        # else:
-        #     toto = copa
-        
-        gal  = join(copa, bma, keys=['mid','CID'])
+        if is_bma:
+            try:
+                bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/%s'%(run))
+            except:
+                bma_dict  = read_hdf5_file_to_dict(fname,path='members/bma/')
+    
+            copa = Table(copa_dict)
+            bma  = Table(bma_dict)
+            gal  = join(copa, bma, keys=['mid','CID'])
+        else:
+            gal = Table(copa_dict)
         return gal
 
 ### auxialry functions

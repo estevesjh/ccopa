@@ -120,8 +120,8 @@ def computeNorm(gals,cat,r200,nbkg,maskfrac,pz_factor=0.612):
 
         ni = n_gals/pz_factor
         
-        if ni<0:
-            print('norm less than zero:',ni)
+        # if ni<0:
+        #     print('norm less than zero:',ni)
         
         norm_vec_i = (_computeNorm(gals[galaxies],r2,nb*(1-fm)))/pz_factor
 
@@ -380,7 +380,7 @@ def get_pdf_redshift(z,zvec,bw):
     pdfRedshift = computeKDE(z,zvec,bw=bw)
     return pdfRedshift
 
-def get_area(ang_diam_dist,r200=1.,r_in=4,r_out=6):
+def get_area(r200=1.,r_in=4,r_out=6):
     # degrees_200 =(360/(2*np.pi))*(r200/ang_diam_dist)
     # degrees_i   =(360/(2*np.pi))*(r_in/ang_diam_dist)
     # degrees_j   =(360/(2*np.pi))*(r_out/ang_diam_dist)
@@ -426,10 +426,24 @@ def group_and_sort_tables(gal,cat):
     gal = gal[gidx]
     return gal, cat, gidx, cidx
 
+def apply_spt_linear_corr(r200_hod, zcls, zp=0.6):
+    from sklearn import linear_model
+    import pickle
+    
+    data = np.vstack([r200_hod, (1+zcls)/(1+zp)])
+
+    # load model
+    path = '/data/des61.a/data/johnny/DESY3/projects/CopacabanaRuns/analysis/aux_files/'
+    fname = path + 'linearModel_10MassCut.pkl'
+    with open(fname, 'r') as handle:
+        ransac = pickle.load(handle)
+
+    return ransac.predict(data.T)
 ## -------------------------------
 ## main function
 def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, cluster_outfile=None,pixelmap=None,
-                r_in=4, r_out=6, sigma_z=0.05, zfile=None, pz_factor=0.613, p_low_lim=0., simulation=True, r_aper_model='hod'):
+                r_in=4, r_out=6, sigma_z=0.05, zfile=None, pz_factor=0.613, p_low_lim=0., simulation=True,
+                 r_aper_model='hod', r_aper_value=1.0, rhod_bias_corr = 0.631):
     gal = Table(getdata(gal_file))
     cat = Table(getdata(cat_file))
     ##############
@@ -457,7 +471,7 @@ def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, clus
     bias, sigma = probz.get_redshift_window(cat,sigma_z,zfile=zfile)
 
     ## get area
-    out = get_area(cat['DA'],r200=0.5/0.7,r_in=r_in,r_out=r_out)
+    out = get_area(r200=0.5/0.7,r_in=r_in,r_out=r_out)
     cat['Area']    = out[0]
     cat['Area_bkg']= out[1]
 
@@ -468,14 +482,23 @@ def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, clus
     ## updating galaxy status
     gal['Bkg'] = BkgFlag    ## all galaxies inside the good backgrund ring's slice
     
+    print(10*'-----')
     print('Computing R200')
+    print('raper_value:',r_aper_value)
+    print(10*'-----')
     if r_aper_model=='rhod':
         r200, raper = radial.computeR200(gal, cat, nbkg, rmax=3/0.7, pz_factor=pz_factor ) ## uncomment in the case to estimate a radius
+        r200 /= rhod_bias_corr
+        if not simulation:
+            r200 = apply_spt_linear_corr(h*r200, np.array(cat['redshift']))/h
+        raper = r_aper_value*r200
     else:
         r200 = cat['R200_true'][:]
-        raper= 1.*r200
+        raper = r200
+        #r200= r_aper_value*r200
 
-    cat['Area']   = get_area(cat['DA'],r200=r200)[0]
+    raper = np.where(raper<0.2/h, 0.2/h, raper)
+    cat['Area']   = get_area(r200=raper)[0]
     gal['r_aper'] = raper[cidx]#[np.in1d(cidx,good_clusters0)]]
     gal['R200']   = r200[cidx]#[np.in1d(cidx,good_clusters0)]]
     gal['Rn']     = gal['R']/gal['R200']
@@ -483,7 +506,7 @@ def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, clus
 
     ## get keys
     good_clusters = good_clusters0[nbkg[good_clusters0]>=0.]
-    galFlag = (gal['Rn']<=1.)#&(gal['zoffset']<=3*sigma[cidx])
+    galFlag = (gal['Rn']<=1.*r_aper_value)#&(gal['zoffset']<=3*sigma[cidx])
 
     #ngals, _, keys, galIndices = backSub.computeGalaxyDensity(gal, cat[good_clusters], raper[good_clusters], nbkg[good_clusters], nslices=72)
     toto = list(chunks(gal['CID'],cat['CID'][good_clusters]))
@@ -499,7 +522,7 @@ def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, clus
 
     print('Computing PDFs \n')
     print('-> Radial Distribution')
-    rvec = np.linspace(0.,4.,40)
+    rvec = np.linspace(0.,4.,80)
     pdfr_list = radial.computeRadialPDF(gal, cat[good_clusters], r200[good_clusters], raper[good_clusters], nbkg[good_clusters], galIndices, rvec, c=3.53)
 
     print('-> Redshift Distribution')
@@ -526,7 +549,7 @@ def clusterCalc(gal_file, cat_file, outfile_pdfs=None, member_outfile=None, clus
 
     print('Compute MaskFraction and Norm')
     print('Pixelmap:',pixelmap)
-    maskFraction = radial.computeMaskFraction(pixelmap, gal, cat[good_clusters], r200[good_clusters], pdfr_list[0], pdfz_list[0], rmed, zvec)
+    maskFraction = radial.computeMaskFraction(pixelmap, gal, cat[good_clusters], raper[good_clusters], pdfr_list[0], pdfz_list[0], rmed, zvec)
     if pixelmap is not None: del pixelmap
     cat['Area'][good_clusters] = (1-maskFraction)*cat['Area'][good_clusters]
 

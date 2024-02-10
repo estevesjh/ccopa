@@ -16,6 +16,8 @@ from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM
 
+from scipy.integrate import simps
+
 ### local libraries
 import healpy as hp
 from projection_radec_to_xy import xy_to_radec,radec_to_xy
@@ -159,7 +161,10 @@ def calcR200(radii,pz,cls_id,z_cls,nbkg,ra_c,dec_c,DA,rmax=3,pixelmap=None,step=
     radii, pz = radii[w], pz[w]
 
     rmin=0.1
-    rbin=np.r_[rmin:rmax:step,rmax]
+    nbins = 21
+    rbin = np.logspace(np.log10(rmin),np.log10(rmax),nbins)
+    # rbin=np.r_[rmin:rmax:step,rmax]
+    # rbin = np.percentile(radii,np.linspace(0,100,nbins))
 
     area = np.pi*rbin**2
     ngals_cls = np.array([np.sum(pz[radii<=ri]) for ri in rbin]) ## number of galaxies (<R) 
@@ -421,7 +426,7 @@ def computeR200(gals, cat, nbkg, rmax=3, defaultMass=1e14, pixelmap=None, pz_fac
         # if compute:
         r200i = calcR200(gal['R']*h,gal['pz0'],cls_id,z_cls,nbkg[idx],rac,dec,da,
                          rmax=3, pz_factor=pz_factor,pixelmap=pixelmap)/h
-        r200i = checkR200(r200i,z_cls,M200=defaultMass)
+        r200i = checkR200(r200i*h,z_cls,M200=defaultMass)
 
         raperi = 1.*r200i
 
@@ -506,14 +511,16 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
         
         probz = gals['pz0'][galIndices]
         probz_bkg = gals['pz0'][bkgGalaxies]
-        
-        area  = np.pi*r2**2 
-        prior = 1 - (nb*area/np.sum(probz))
 
-        normConstant = norm_constant(ra,c=c)
-
+        ## nfw density profile
         pdf_cls_i = doPDF(rmed,r2,c=c)
-        pdf_cls_i/= 2*np.pi*np.trapz(rmed*pdf_cls_i,x=rmed)
+
+        # normalization up to the aperture radii
+        rxmax = np.argmin(np.abs(rmed-ra))
+        pdf_cls_i/= simps(2*np.pi*rmed[:rxmax]*pdf_cls_i[:rxmax],x=rmed[:rxmax])
+
+        ## field density profile
+        pdf_f_i  = np.ones_like(rmed)/(np.pi*ra**2) #get_subtracted_pdf(rmed,pdf_cls_i,pdf_cf_i,pr=prior)
 
         #m2 = convertR200toM200(r2*h,z_cls)/h
         #pdf_cls_i = get_profile_DK14(rmed,m2,z_cls)
@@ -522,7 +529,7 @@ def computeRadialPDF(gals,cat,r200,raper,nbkg,keys,rvec,c=3.53):
 
         #pdf_f_i  = get_radial_pdf(rmed,radii_bkg,probz_bkg)#np.histogram(radii_bkg,bins=rvec,weights=probz_bkg)[0]
         pdf_cf_i = get_radial_pdf(rmed,radii,probz)#np.histogram(radii,bins=rvec,weights=probz)[0]
-        pdf_f_i  = np.ones_like(rmed)#get_subtracted_pdf(rmed,pdf_cls_i,pdf_cf_i,pr=prior)
+        pdf_f_i  = np.ones_like(rmed)/(np.pi*ra**2) #get_subtracted_pdf(rmed,pdf_cls_i,pdf_cf_i,pr=prior)
 
         pdf_cf.append(pdf_cf_i)
         pdf_field.append(pdf_f_i)

@@ -3,9 +3,8 @@ import h5py
 from joblib import Parallel, delayed
 from astropy.table import Table, join
 
-def compute_mu_star_true(fname,run,ngals=True,nCores=12):
-    fmaster = h5py.File(fname,'a')
-
+def compute_mu_star_true(fname, run, mass_label='mass', mu_star_label='MU', path=None, ngals=True,nCores=12):
+    fmaster = h5py.File(fname,'r')
     cluster = fmaster['clusters/copa/%s'%run]
     cid     = cluster['CID'][:]
 
@@ -16,17 +15,14 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     tmid = fmaster['members/main/mid' ][:]
     tmem = fmaster['members/main/True'][:]
     
-    if run in fmaster['members/bma/'].keys():
-        path = 'members/bma/%s/'%run
-        bmid = fmaster['members/bma/indices/%s'%run][:]
-
+    if path is None:
+        _path = 'members/bma/'
     else:
-        path = 'members/bma/'
-        bmid = fmaster[path+'mid'][:]
-        
-    bcid = fmaster[path+'CID'][:]
-    mass = fmaster[path+'mass'][:]
+        _path = 'members/bma/%s/'%path
 
+    bmid = fmaster[_path+'mid'][:]
+    bcid = fmaster[_path+'CID'][:]
+    mass = fmaster[_path+mass_label][:]
     fmaster.close()
 
     # print 'Matching BMA with Copa output'
@@ -46,6 +42,7 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
         ntrue = np.array([np.sum(tm[ix]) for ix in keys])
 
         out   = Parallel(n_jobs=nCores)(delayed(_compute_muStar)(tm[ix],mass[ix]) for ix in keys)
+        #out   = [_compute_muStar(tm[ix],mass[ix]) for ix in keys]
         mu_star     = np.array([res[0] for res in out])
         mu_star_err = np.array([res[1] for res in out])
     else:
@@ -58,17 +55,14 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     # mu_star_err = res[:,1]
 
     # print 'mu star output size:', mu_star.size
+    mu_star_label += '_TRUE'
+    write_indices_out(mu_star,fname,'clusters/copa/%s'%run,col=mu_star_label,overwrite=True)
+    write_indices_out(mu_star_err,fname,'clusters/copa/%s'%run,col=mu_star_label+'_ERR_JK',overwrite=True)
 
-    fmaster = h5py.File(fname,'a')
-    cluster = fmaster['clusters/copa/%s'%run]
-    if 'MU_TRUE' not in cluster.keys():
-        cluster.create_dataset('MU_TRUE',data=mu_star)
-        cluster.create_dataset('MU_TRUE_ERR_JK',data=mu_star_err)
-    else:
-        cluster['MU_TRUE'][:] = mu_star
-        cluster['MU_TRUE_ERR_JK'][:] = mu_star_err
-    
     if ngals:
+        fmaster = h5py.File(fname,'a')
+        cluster = fmaster['clusters/copa/%s'%run]
+
         if 'Ngals_true' not in cluster.keys():
             cluster.create_dataset('Ngals_true',data=ntrue)
         else:
@@ -77,9 +71,8 @@ def compute_mu_star_true(fname,run,ngals=True,nCores=12):
     fmaster.close()
 
 
-def compute_mu_star(fname, run, nCores=12, mass_label='mass'):
-    fmaster = h5py.File(fname,'a')
-
+def compute_mu_star(fname, run, nCores=12, mass_label='mass', mu_star_label='MU', path=None, overwrite=True):
+    fmaster = h5py.File(fname,'r')
     cluster = fmaster['clusters/copa/%s'%run]
     cid     = np.unique(cluster['CID'][:])
 
@@ -91,19 +84,16 @@ def compute_mu_star(fname, run, nCores=12, mass_label='mass'):
     tmid = fmaster['members/main/mid' ][:]
     tmem = fmaster['members/main/True'][:]
     
-    if run in fmaster['members/bma/'].keys():
-        path = 'members/bma/%s/'%run
+    if path is None:
+        _path = 'members/bma/'
     else:
-        path = 'members/bma/'
-
-    if mass_label is 'mass_ml':
-        path = 'members/copa/%s/'%run
+        _path = 'members/bma/%s/'%path
         
-    print('check: %s'%(path+mass_label))
+    print('check: %s'%(_path+mass_label))
 
-    bmid = fmaster[path+'mid'][:]
-    bcid = fmaster[path+'CID'][:]
-    mass = fmaster[path+mass_label][:]
+    bmid = fmaster[_path+'mid'][:]
+    bcid = fmaster[_path+'CID'][:]
+    mass = fmaster[_path+mass_label][:]
     fmaster.close()
 
     # print 'Matching BMA with Copa output'
@@ -122,6 +112,7 @@ def compute_mu_star(fname, run, nCores=12, mass_label='mass'):
         keys  = list(chunks_id(match['CID'],cid))
 
         out   = Parallel(n_jobs=nCores)(delayed(_compute_muStar)(pmem[ix],mass[ix]) for ix in keys)
+        #out   = [_compute_muStar(tm[ix],mass[ix]) for ix in keys]
         mu_star     = np.array([res[0] for res in out])
         mu_star_err = np.array([res[1] for res in out])
     else:
@@ -134,26 +125,8 @@ def compute_mu_star(fname, run, nCores=12, mass_label='mass'):
     # mu_star_err = res[:,1]
 
     # print 'mu star output size:', mu_star.size
-
-    mu_star_label = 'MU'
-    if mass_label!='mass':
-        mu_star_label += mass_label[4:].upper()
-
-    write_indices_out(mu_star,fname,'clusters/copa/%s'%run,col=mu_star_label)
-    write_indices_out(mu_star_err,fname,'clusters/copa/%s'%run,col=mu_star_label+'_ERR_JK')
-
-    # fmaster = h5py.File(fname,'a')
-    # cluster = fmaster['clusters/copa/%s'%run]
-        
-    # if mu_star_label not in cluster.keys():
-    #     cluster.create_dataset(mu_star_label,data=mu_star)
-    #     cluster.create_dataset(mu_star_label+'_ERR_JK',data=mu_star_err)
-    # else:
-    #     del cluster[mu_star_label]
-    #     del cluster[mu_star_label+'_ERR_JK']
-    #     cluster.create_dataset(mu_star_label,data=mu_star)
-    #     cluster.create_dataset(mu_star_label+'_ERR_JK',data=mu_star_err)
-    # fmaster.close()
+    write_indices_out(mu_star,fname,'clusters/copa/%s'%run,col=mu_star_label,overwrite=overwrite)
+    write_indices_out(mu_star_err,fname,'clusters/copa/%s'%run,col=mu_star_label+'_ERR_JK',overwrite=overwrite)
 
 def write_indices_out(indices,fname,path,col='02Lstar',overwrite=False):    
     fmaster = h5py.File(fname, 'a')

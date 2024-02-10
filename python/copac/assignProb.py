@@ -235,8 +235,8 @@ def gaussian(x,mu,sigma):
 
 def get_frequency(pdf,eps=1e-12):
     pdfn = np.where(pdf<0.,0.,pdf)
-    norm = np.sum(pdfn)
-    if norm>0.: pdfn = 100*pdfn/norm
+    # norm = np.sum(pdfn)
+    # if norm>0.: pdfn = 100*pdfn/norm
     return pdfn
 
 def get_radial_pdf(radii,rvec,pdfr,pdfr_field):

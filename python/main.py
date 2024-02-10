@@ -256,7 +256,7 @@ class copacabana:
         galpro = load_galpro_model(self.kwargs['galpro_path'])
         for hpx,mfile in zip(self.tiles,self.master_fname_tile_list):
             print('Runing tile: %i'%hpx)
-            t0 = time()
+            #t0 = time()
             data = read_hdf5_file_to_dict(mfile,cols=['mag','redshift'],indices=None,path=path)
             if len(data['mag'][:])>0.:
                 galpro.x_test = get_input_galpro(np.array(data['mag'][:]),np.array(data['redshift'][:]))
@@ -267,8 +267,8 @@ class copacabana:
                 smass = np.empty(0)
 
             write_indices_out(smass,mfile,path,col='mass_ml',overwrite=True)
-            tt = (time()-t0)/60
-            print('stellarMass partial time: %.2f min \n'%(tt))
+            #tt = (time()-t0)/60
+            #print('stellarMass partial time: %.2f min \n'%(tt))
 
     def run_copa_healpix(self,run_name,pz_file=None,nCores=20,old_code=False):
         print('\nStarting Copa')
@@ -399,7 +399,7 @@ class copacabana:
 
         ckwargs = [{'outfile_pdfs':pdfi,'member_outfile':None,'cluster_outfile':None,'r_in':self.kwargs['r_in']/h, 'pz_factor':self.kwargs['pz_factor'],
                     'r_out':self.kwargs['r_out']/h, 'sigma_z':self.kwargs['z_window'], 'zfile':self.kwargs['z_model_file'], 
-                    'simulation': self.simulation, 'r_aper_model':self.kwargs['r_aper_model'],'pixelmap':self.kwargs['pixelmap_file']}
+                    'simulation': self.simulation, 'r_aper_model':self.kwargs['r_aper_model'], 'r_aper_value':self.kwargs['r_aper_value'], 'pixelmap':self.kwargs['pixelmap_file']}
                     for pdfi in self.copa_pdf_output_files]
         
         self.make_copa_tmp_files(run_name,gal_list,cluster_list)
@@ -422,20 +422,24 @@ class copacabana:
         g0,cat = getOutFile(out)
         return cat, g0
 
-    def load_copa_out(self,dtype,run):
+    def load_copa_out(self,dtype,run,is_bma=False):
         if self.healpix:
             data = []
             for mfile in self.master_fname_tile_list:
-                data.append(load_copa_output(mfile,dtype,run))
+                data.append(load_copa_output(mfile,dtype,run,is_bma=is_bma))
             return vstack(data)
         else:
-            return load_copa_output(self.master_fname,dtype,run)
+            return load_copa_output(self.master_fname,dtype,run,is_bma=is_bma)
 
-    def compute_muStar(self,run,mass_label='mass',true_members=False,overwrite=True,nCores=20):
+    def compute_muStar(self,run,true_members=False,overwrite=True,nCores=20,
+                      mass_label='mass', mu_star_label='MU', path=None):
+        if path is None:
+            path = 'members/bma/'
+
         if not self.healpix:
             fmaster = h5py.File(self.master_fname,'r')
-            check   = 'mass' in fmaster['members/bma/'].keys()
-            check2  = 'MU' not in fmaster['clusters/copa/%s'%run].keys()
+            check   = 'mass' in fmaster[path].keys()
+            check2  = mu_star_label not in fmaster['clusters/copa/%s'%run].keys()
             fmaster.close()
 
             if not check:
@@ -443,15 +447,23 @@ class copacabana:
 
             if check2 or overwrite: 
                 # if true_members:
-                compute_mu_star(self.master_fname,run,mass_label=mass_label,nCores=nCores)
+                compute_mu_star(self.master_fname, run, mass_label=mass_label, 
+                                mu_star_label=mu_star_label, path=path, nCores=nCores)
                 if self.simulation:
-                    compute_mu_star_true(self.master_fname,run,ngals=True,nCores=nCores)
+                    # compute_mu_star_true(self.master_fname,run,ngals=True,nCores=nCores)
+                    compute_mu_star_true(self.master_fname, run, ngals=True, mass_label=mass_label,
+                                        mu_star_label=mu_star_label, path=path, nCores=nCores)
         else:
             for mfile in self.master_fname_tile_list:
                 print(mfile)
-                compute_mu_star(mfile,run,mass_label=mass_label,nCores=nCores)
+                # compute_mu_star(mfile,run,mass_label=mass_label,nCores=nCores,overwrite=overwrite)
+                compute_mu_star(mfile, run, mass_label=mass_label, 
+                                mu_star_label=mu_star_label, path=path, nCores=nCores)
+
                 if self.simulation:
-                    compute_mu_star_true(mfile,run,ngals=True,nCores=nCores)
+                    # compute_mu_star_true(mfile,run,ngals=True,nCores=nCores)
+                    compute_mu_star_true(mfile, run, ngals=True, mass_label=mass_label,
+                                        mu_star_label=mu_star_label, path=path, nCores=nCores)
 
 ################
 def get_files(config_file):
@@ -528,6 +540,7 @@ def _pre_processing_healpix(self,tile):
     
     print('cluster columns')
     print(cd)
+
     tile        = int(tile)
     infile      = self.gfile.format(tile)
     mfile       = self.master_fname_tile.format(tile)
@@ -554,7 +567,8 @@ def _pre_processing_healpix(self,tile):
         pp.apply_mag_cut(dmag_cut=3)
         
         print('Writing Master File')
-        make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
+	if len(pp.data)>0:
+        	make_master_file(pp.cdata,pp.out,mfile,self.yaml_file,self.header)
 
         partial_time = time()-t0
         print('Partial time: %.2f s \n'%(partial_time))

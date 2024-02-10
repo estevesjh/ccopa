@@ -68,7 +68,7 @@ class preProcessing:
         
         ## get mag limit model
         hid    = np.array(self.cdata[cc['HALOID']])[self.idxc]
-        fields = self.data[cg['tile']][self.idxg]
+        fields = np.array(self.cdata[cc['tile']])[self.idxc]
         zvec   = np.array(self.cdata[cc['redshift']])[self.idxc]
         magLim = self.getMagLimModel_04L(self.auxfile,zvec,dm=0)
 
